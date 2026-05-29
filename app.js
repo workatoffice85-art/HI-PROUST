@@ -20,7 +20,7 @@ if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase) {
 // ==========================================================================
 // 1. MENU DATABASE (HI PROUST SIGNATURE RECIPES)
 // ==========================================================================
-const MENU = [
+let MENU = [
   {
     id: "br-01",
     cat: "broast",
@@ -167,7 +167,7 @@ const MENU = [
   }
 ];
 
-const CATEGORIES = [
+let CATEGORIES = [
   { id: "all", nameAr: "كل الأطباق", nameEn: "All Items" },
   { id: "broast", nameAr: "بروستد مقرمش", nameEn: "Crispy Broast" },
   { id: "burgers", nameAr: "برجر وميجا", nameEn: "Mighty Burgers" },
@@ -289,6 +289,7 @@ const AppState = {
   selectedTable: 1,
   selectedLang: 'ar',
   activeRole: 'customer-view', // 'customer-view' | 'kitchen-view' | 'cashier-view'
+  totalTables: 12,
   
   // Customer Details
   phoneNumber: '',
@@ -326,9 +327,71 @@ async function loadFromLocalStorage() {
   AppState.activeOrderId = localStorage.getItem('HIPROUST_ACTIVE_ORDER_ID') || null;
   AppState.customerName = localStorage.getItem('HIPROUST_CUSTOMER_NAME') || '';
   AppState.phoneNumber = localStorage.getItem('HIPROUST_PHONE_NUMBER') || '';
+  
+  // Load total tables from local storage
+  const storedTotalTables = localStorage.getItem('HIPROUST_TOTAL_TABLES');
+  if (storedTotalTables) {
+    AppState.totalTables = parseInt(storedTotalTables) || 12;
+  }
 
   // Cloud Database Integration (Supabase)
   if (supabaseClient) {
+    // 0. Fetch Settings
+    try {
+      const { data: setVal } = await supabaseClient
+        .from('settings')
+        .select('*')
+        .eq('key', 'total_tables')
+        .single();
+      if (setVal && setVal.value) {
+        AppState.totalTables = parseInt(setVal.value) || 12;
+      }
+    } catch (err) {
+      console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
+    }
+    // A. Fetch Categories
+    try {
+      const { data: catData, error: catError } = await supabaseClient
+        .from('categories')
+        .select('*');
+      if (catData && catData.length > 0) {
+        const dbCats = catData.map(c => ({
+          id: c.id,
+          nameAr: c.name_ar,
+          nameEn: c.name_en
+        }));
+        // Ensure "All Items" (all) category is always at the top of customer categories
+        CATEGORIES = [{ id: "all", nameAr: "كل الأطباق", nameEn: "All Items" }, ...dbCats];
+      }
+    } catch (err) {
+      console.warn("Supabase categories fetch error:", err);
+    }
+
+    // B. Fetch Products
+    try {
+      const { data: prodData, error: prodError } = await supabaseClient
+        .from('products')
+        .select('*');
+      if (prodData && prodData.length > 0) {
+        MENU = prodData.map(p => ({
+          id: p.id,
+          cat: p.category_id,
+          nameAr: p.name_ar,
+          nameEn: p.name_en,
+          descAr: p.description_ar || '',
+          descEn: p.description_en || '',
+          price: Number(p.price),
+          spicy: p.is_spicy,
+          bestSeller: p.is_bestseller,
+          svg: p.image_url || '',
+          imageUrl: p.image_url || null
+        }));
+      }
+    } catch (err) {
+      console.warn("Supabase products fetch error:", err);
+    }
+
+    // C. Fetch Orders
     try {
       const { data, error } = await supabaseClient
         .from('orders')
@@ -350,13 +413,17 @@ async function loadFromLocalStorage() {
           status: o.status,
           paymentStatus: o.payment_status,
           paymentMethod: o.payment_method,
+          auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
           timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
           elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
         }));
         
         // Trigger UI updates in real-time across all views
         if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
-        if (AppState.activeRole === 'admin-view') renderAdminDashboard();
+        if (AppState.activeRole === 'admin-view') {
+          renderAdminDashboard();
+          if (typeof renderAdminMenuManage === 'function') renderAdminMenuManage();
+        }
         if (AppState.activeRole === 'cashier-view') {
           renderCashierOrdersTable();
           updateCashierMetrics();
@@ -368,11 +435,17 @@ async function loadFromLocalStorage() {
             }
           }
         }
-        if (AppState.activeRole === 'customer-view' && AppState.activeOrderId) {
-          const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
-          if (trackingOrder) {
-            updateLiveTrackingUI(trackingOrder);
+        if (AppState.activeRole === 'customer-view') {
+          if (AppState.activeOrderId) {
+            const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+            if (trackingOrder) {
+              updateLiveTrackingUI(trackingOrder);
+            }
           }
+          const catContainer = document.getElementById('categories-scroll');
+          if (catContainer) renderMenuCategories();
+          const menuContainer = document.getElementById('menu-catalog');
+          if (menuContainer) renderMenuCatalog();
         }
       }
     } catch (err) {
@@ -597,7 +670,8 @@ function renderTableGrid() {
   const grid = document.getElementById('table-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  for (let i = 1; i <= 12; i++) {
+  const total = AppState.totalTables || 12;
+  for (let i = 1; i <= total; i++) {
     const btn = document.createElement('button');
     btn.className = `table-btn ${i === AppState.selectedTable ? 'active' : ''}`;
     btn.innerText = i;
@@ -781,10 +855,25 @@ function renderMenuCatalog() {
       actionBtnHtml = `<button class="add-to-cart-btn add-new" data-id="${item.id}"><i class="fa-solid fa-plus" style="pointer-events:none;"></i></button>`;
     }
 
+    let imageHtml = '';
+    const imgSource = item.svg || item.imageUrl || '';
+    if (imgSource.trim().startsWith('<svg')) {
+      imageHtml = imgSource;
+    } else if (imgSource.trim() !== '') {
+      imageHtml = `<img src="${imgSource}" alt="${title}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block;">`;
+    } else {
+      imageHtml = `<svg class="brand-logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width: 60px; height: 60px; display: inline-block;">
+        <circle cx="50" cy="50" r="48" fill="#FFC107" stroke="#C62828" stroke-width="3"/>
+        <circle cx="50" cy="46" r="22" fill="#FFFFFF" stroke="#333" stroke-width="1.5"/>
+        <path d="M 44 46 L 56 46 L 50 58 Z" fill="#FF9800" stroke="#333" stroke-width="1.5"/>
+        <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
+      </svg>`;
+    }
+
     card.innerHTML = `
       ${badgeHtml}
-      <div class="menu-card-img-wrap">
-        ${item.svg}
+      <div class="menu-card-img-wrap" style="display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+        ${imageHtml}
       </div>
       <div class="menu-card-info">
         <div>
@@ -1065,7 +1154,11 @@ function updateLiveTrackingUI(order) {
     stepPlaced.classList.add('active');
     successBadge.innerHTML = `<i class="fa-solid fa-receipt"></i>`;
     successBadge.style.backgroundColor = 'var(--color-completed)';
-    document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? '١٢-١٨ دقيقة' : '12-18 mins';
+    if (order.paymentStatus !== 'paid') {
+      document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? 'بانتظار تحصيل الفاتورة عند الكاشير ⏳' : 'Waiting for payment at cashier ⏳';
+    } else {
+      document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? '١٢-١٨ دقيقة' : '12-18 mins';
+    }
   } else if (order.status === 'preparing') {
     stepPlaced.classList.add('completed');
     stepCook.classList.add('active');
@@ -1110,6 +1203,9 @@ function renderKDSBoard() {
 
   AppState.orders.forEach(order => {
     if (order.status === 'completed') return; // Completed orders are archived from the KDS board
+    
+    // New Workflow Constraint: Orders MUST be approved/paid by cashier before reaching the kitchen!
+    if (order.paymentStatus !== 'paid') return;
 
     const card = document.createElement('div');
     card.className = `kds-card ${order.status}-order`;
@@ -1217,11 +1313,21 @@ function advanceOrderStatus(orderId) {
   const order = AppState.orders.find(o => o.id === orderId);
   if (!order) return;
 
+  const staffName = AppState.loggedStaff 
+    ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
+    : (AppState.selectedLang === 'ar' ? 'النظام' : 'System');
+
   if (order.status === 'new') {
     order.status = 'preparing';
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(order, AppState.selectedLang === 'ar' ? `بدء التحضير بواسطة ${staffName}` : `Started prep by ${staffName}`);
+    }
     AudioSynthesizer.playBeep();
   } else if (order.status === 'preparing') {
     order.status = 'ready';
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(order, AppState.selectedLang === 'ar' ? `جاهز للتسليم بواسطة ${staffName}` : `Marked ready by ${staffName}`);
+    }
     AudioSynthesizer.playReadyBell();
     showToastNotification(
       AppState.selectedLang === 'ar'
@@ -1231,6 +1337,9 @@ function advanceOrderStatus(orderId) {
     );
   } else if (order.status === 'ready') {
     order.status = 'completed';
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(order, AppState.selectedLang === 'ar' ? `تم التسليم والإغلاق بواسطة ${staffName}` : `Served by ${staffName}`);
+    }
     AudioSynthesizer.playBeep();
   }
 
@@ -1240,7 +1349,10 @@ function advanceOrderStatus(orderId) {
   if (supabaseClient) {
     supabaseClient
       .from('orders')
-      .update({ status: order.status })
+      .update({ 
+        status: order.status,
+        audit_log: order.auditLog || []
+      })
       .eq('id', order.id)
       .then(res => {
         console.log('Order status updated in Supabase:', res);
@@ -1407,6 +1519,45 @@ function renderCashierCheckoutSidebar() {
     ? (AppState.selectedLang === 'ar' ? `محلي (طاولة ${selectedOrderForCheckout.table})` : `Dine-in (Table ${selectedOrderForCheckout.table})`)
     : (AppState.selectedLang === 'ar' ? 'سفري (تيك أواي)' : 'Takeaway');
 
+  let auditTimelineHtml = '';
+  if (selectedOrderForCheckout.auditLog && selectedOrderForCheckout.auditLog.length > 0) {
+    let timelineItemsHtml = '';
+    selectedOrderForCheckout.auditLog.forEach(log => {
+      let dotClass = 'created';
+      const actionText = log.action.toLowerCase();
+      if (actionText.includes('تحضير') || actionText.includes('prep') || actionText.includes('cook')) {
+        dotClass = 'preparing';
+      } else if (actionText.includes('جاهز') || actionText.includes('ready')) {
+        dotClass = 'ready';
+      } else if (actionText.includes('تسليم') || actionText.includes('serve') || actionText.includes('complete')) {
+        dotClass = 'completed';
+      } else if (actionText.includes('فاتورة') || actionText.includes('pay') || actionText.includes('حص')) {
+        dotClass = 'paid';
+      }
+
+      timelineItemsHtml += `
+        <div class="audit-timeline-item" style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; position: relative;">
+          <div class="audit-timeline-dot ${dotClass}" style="width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; background-color: var(--color-${dotClass});"></div>
+          <div class="audit-timeline-content" style="flex: 1; text-align: right;">
+            <div class="title" style="font-size: 0.75rem; font-weight: 800; color: var(--text-dark);">${log.action}</div>
+            <div class="meta" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">
+              <span>بواسطة: ${log.staff}</span> &bull; <span>${log.timestamp}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    auditTimelineHtml = `
+      <div style="margin-top: 18px; border-top: 1px dashed var(--light-border); padding-top: 14px;">
+        <h5 class="form-label" style="font-size: 0.75rem; margin-bottom: 10px; font-weight: bold; color: var(--text-dark);">سجل الحركات المباشر:</h5>
+        <div class="audit-timeline-wrapper" style="padding-right: 4px; position: relative;">
+          ${timelineItemsHtml}
+        </div>
+      </div>
+    `;
+  }
+
   content.innerHTML = `
     <div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1448,6 +1599,8 @@ function renderCashierCheckoutSidebar() {
           <i class="fa-solid fa-circle-check"></i> تم تحصيل فاتورة هذا الطلب بالكامل بنجاح
         </div>
       ` : ''}
+
+      ${auditTimelineHtml}
     </div>
   `;
 
@@ -1477,6 +1630,14 @@ function processCashierPayment() {
   selectedOrderForCheckout.paymentStatus = 'paid';
   selectedOrderForCheckout.paymentMethod = selectedPaymentMethod;
   
+  const staffName = AppState.loggedStaff 
+    ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
+    : (AppState.selectedLang === 'ar' ? 'الكاشير' : 'Cashier');
+  
+  if (typeof addAuditLog === 'function') {
+    addAuditLog(selectedOrderForCheckout, AppState.selectedLang === 'ar' ? `تحصيل الفاتورة بواسطة ${staffName}` : `Payment collected by ${staffName}`);
+  }
+
   saveToLocalStorage();
 
   // Cloud Sync (Supabase Payment Update)
@@ -1485,7 +1646,8 @@ function processCashierPayment() {
       .from('orders')
       .update({ 
         payment_status: selectedOrderForCheckout.paymentStatus, 
-        payment_method: selectedOrderForCheckout.paymentMethod 
+        payment_method: selectedOrderForCheckout.paymentMethod,
+        audit_log: selectedOrderForCheckout.auditLog || []
       })
       .eq('id', selectedOrderForCheckout.id)
       .then(res => {
@@ -1693,8 +1855,8 @@ function prePopulateHistoricalOrders() {
     notes: "",
     type: "takeaway",
     status: "preparing",
-    paymentStatus: "unpaid",
-    paymentMethod: null,
+    paymentStatus: "paid",
+    paymentMethod: "mada",
     timestamp: "09:48 م",
     elapsedSeconds: 110
   });
@@ -1848,6 +2010,464 @@ function renderCustomerProfileScreen() {
       }
     });
   });
+}
+
+// ==========================================================================
+// 13.7 MULTI-USER STAFF PORTAL & AUDITING CONTROLLERS
+// ==========================================================================
+const STAFF_PROFILES = [
+  { id: 'fahad', name: 'المدير فهد', nameEn: 'Manager Fahad', role: 'admin', pin: '1111', avatar: '👨‍💼' },
+  { id: 'sarah', name: 'المديرة سارة', nameEn: 'Manager Sarah', role: 'admin', pin: '2222', avatar: '👩‍💼' },
+  { id: 'salem', name: 'الكاشير سالم', nameEn: 'Cashier Salem', role: 'cashier', pin: '3333', avatar: '👨‍💻' },
+  { id: 'khalid', name: 'الكاشير خالد', nameEn: 'Cashier Khalid', role: 'cashier', pin: '4444', avatar: '👨(' },
+  { id: 'omar', name: 'الشيف عمر', nameEn: 'Chef Omar', role: 'kitchen', pin: '5555', avatar: '👨‍🍳' },
+  { id: 'tariq', name: 'الشيف طارق', nameEn: 'Chef Tariq', role: 'kitchen', pin: '6666', avatar: '👨‍🍳' }
+];
+
+let selectedStaff = null;
+let currentPinInput = "";
+let selectedBase64Image = "";
+
+function addAuditLog(order, action) {
+  if (!order.auditLog) {
+    order.auditLog = [];
+  }
+  
+  const staffName = AppState.loggedStaff 
+    ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
+    : (AppState.selectedLang === 'ar' ? 'نظام تلقائي' : 'System Auto');
+
+  const entry = {
+    action: action,
+    staff: staffName,
+    timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+    date: new Date().toISOString()
+  };
+
+  order.auditLog.push(entry);
+}
+
+function initStaffLoginPortal(targetRole) {
+  const loginModal = document.getElementById('staff-login-modal');
+  if (!loginModal) return;
+
+  const staffProfilesContainer = document.getElementById('staff-profiles-container');
+  const stepProfile = document.getElementById('login-step-profile');
+  const stepPin = document.getElementById('login-step-pin');
+
+  // Check if a staff is already logged in for this session
+  const storedStaffId = localStorage.getItem('HIPROUST_LOGGED_STAFF_' + targetRole);
+  if (storedStaffId) {
+    const staff = STAFF_PROFILES.find(s => s.id === storedStaffId && s.role === targetRole);
+    if (staff) {
+      AppState.loggedStaff = staff;
+      renderActiveStaffHeaderBadge(targetRole);
+      loginModal.style.display = 'none';
+      return;
+    }
+  }
+
+  // Display login modal
+  loginModal.style.display = 'flex';
+  stepProfile.style.display = 'block';
+  stepPin.style.display = 'none';
+
+  // Render profiles
+  if (staffProfilesContainer) {
+    staffProfilesContainer.innerHTML = '';
+    const profiles = STAFF_PROFILES.filter(s => s.role === targetRole);
+    profiles.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'staff-profile-item';
+      item.setAttribute('data-id', p.id);
+      
+      const displayName = AppState.selectedLang === 'ar' ? p.name : p.nameEn;
+      item.innerHTML = `
+        <div class="avatar">${p.avatar}</div>
+        <div class="name">${displayName}</div>
+      `;
+      
+      item.addEventListener('click', () => {
+        AudioSynthesizer.playBeep();
+        selectedStaff = p;
+        document.getElementById('selected-staff-display').innerText = displayName;
+        currentPinInput = "";
+        updatePinDots();
+        stepProfile.style.display = 'none';
+        stepPin.style.display = 'block';
+      });
+      staffProfilesContainer.appendChild(item);
+    });
+  }
+
+  // Bind staff keypad buttons only once
+  if (!loginModal.dataset.keypadBound) {
+    loginModal.dataset.keypadBound = "true";
+    loginModal.querySelectorAll('.keypad-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.getAttribute('data-val');
+        if (val !== null) {
+          handleStaffKeypadPress(val);
+        } else if (btn.id === 'btn-keypad-clear') {
+          handleStaffKeypadPress('clear');
+        } else if (btn.id === 'btn-keypad-backspace') {
+          handleStaffKeypadPress('back');
+        }
+      });
+    });
+
+    const btnBackProfiles = document.getElementById('btn-back-to-profiles');
+    if (btnBackProfiles) {
+      btnBackProfiles.addEventListener('click', () => {
+        AudioSynthesizer.playBeep();
+        stepPin.style.display = 'none';
+        stepProfile.style.display = 'block';
+      });
+    }
+  }
+}
+
+function updatePinDots() {
+  for (let i = 1; i <= 4; i++) {
+    const dot = document.getElementById(`pin-dot-${i}`);
+    if (dot) {
+      if (i <= currentPinInput.length) {
+        dot.classList.add('filled');
+      } else {
+        dot.classList.remove('filled');
+      }
+    }
+  }
+}
+
+function handleStaffKeypadPress(val) {
+  AudioSynthesizer.playBeep();
+  if (val === 'clear') {
+    currentPinInput = "";
+  } else if (val === 'back') {
+    currentPinInput = currentPinInput.slice(0, -1);
+  } else if (currentPinInput.length < 4) {
+    currentPinInput += val;
+  }
+
+  updatePinDots();
+
+  if (currentPinInput.length === 4) {
+    if (selectedStaff && currentPinInput === selectedStaff.pin) {
+      AppState.loggedStaff = selectedStaff;
+      localStorage.setItem('HIPROUST_LOGGED_STAFF_' + selectedStaff.role, selectedStaff.id);
+      
+      AudioSynthesizer.playReadyBell();
+      showToastNotification(
+        AppState.selectedLang === 'ar' 
+          ? `مرحباً بك يا ${selectedStaff.name}! تم تسجيل دخولك بنجاح.` 
+          : `Welcome, ${selectedStaff.nameEn}! Logged in successfully.`,
+        'ready'
+      );
+      
+      renderActiveStaffHeaderBadge(selectedStaff.role);
+      document.getElementById('staff-login-modal').style.display = 'none';
+    } else {
+      AudioSynthesizer.playBeep();
+      currentPinInput = "";
+      updatePinDots();
+      
+      const loginCard = document.querySelector('.staff-login-card');
+      if (loginCard) {
+        loginCard.classList.add('shake-anim');
+        setTimeout(() => loginCard.classList.remove('shake-anim'), 400);
+      }
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' 
+          ? 'رمز الدخول السري غير صحيح! حاول مجدداً.' 
+          : 'Incorrect PIN! Please try again.',
+        'new'
+      );
+    }
+  }
+}
+
+function renderActiveStaffHeaderBadge(role) {
+  const badgeContainer = document.getElementById('active-staff-header-badge');
+  if (!badgeContainer) return;
+
+  if (AppState.loggedStaff) {
+    const name = AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn;
+    badgeContainer.className = 'active-staff-header-badge';
+    badgeContainer.innerHTML = `
+      <span class="avatar-circle">${AppState.loggedStaff.avatar}</span>
+      <span class="name-display">${name}</span>
+      <button class="btn-logout" title="${AppState.selectedLang === 'ar' ? 'خروج' : 'Logout'}">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </button>
+    `;
+
+    const btnLogout = badgeContainer.querySelector('.btn-logout');
+    if (btnLogout) {
+      btnLogout.addEventListener('click', () => {
+        AudioSynthesizer.playBeep();
+        if (confirm(AppState.selectedLang === 'ar' ? "هل تريد تسجيل الخروج؟" : "Are you sure you want to log out?")) {
+          localStorage.removeItem('HIPROUST_LOGGED_STAFF_' + role);
+          AppState.loggedStaff = null;
+          initStaffLoginPortal(role);
+        }
+      });
+    }
+  } else {
+    badgeContainer.innerHTML = '';
+  }
+}
+
+// ==========================================================================
+// 13.9 DYNAMIC MENU & CATEGORIES CRUD CONTROLLERS
+// ==========================================================================
+
+function renderAdminMenuManage() {
+  const categoriesListBody = document.getElementById('admin-categories-list-body');
+  const productsCatalogContainer = document.getElementById('admin-products-catalog-container');
+
+  if (categoriesListBody) {
+    categoriesListBody.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      if (cat.id === 'all') return;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight: 700; color: #fff;">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
+        <td style="text-align: center;">
+          <button class="sim-btn delete-cat-btn" data-id="${cat.id}" style="background-color: rgba(239, 68, 68, 0.1); border-color: var(--color-new); color: var(--color-new); padding: 4px 8px; font-size: 0.7rem;">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      `;
+      categoriesListBody.appendChild(tr);
+    });
+
+    categoriesListBody.querySelectorAll('.delete-cat-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        deleteCategory(id);
+      });
+    });
+  }
+
+  if (productsCatalogContainer) {
+    productsCatalogContainer.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      if (cat.id === 'all') return;
+      const catProducts = MENU.filter(p => p.cat === cat.id);
+
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'admin-category-group';
+      groupDiv.style.border = '1px solid var(--dark-border)';
+      groupDiv.style.padding = '16px';
+      groupDiv.style.backgroundColor = 'rgba(255,255,255,0.01)';
+      groupDiv.style.borderRadius = '12px';
+
+      let productsHtml = '';
+      if (catProducts.length === 0) {
+        productsHtml = `<div style="color: var(--text-light-muted); font-size: 0.8rem; padding: 8px; text-align: right;">لا توجد وجبات في هذا القسم حالياً</div>`;
+      } else {
+        let cardsHtml = '';
+        catProducts.forEach(p => {
+          let badgeHtml = '';
+          if (p.spicy) {
+            badgeHtml = `<span class="menu-card-badge" style="background-color: var(--primary-red); font-size: 0.65rem; top: 8px; right: 8px;"><i class="fa-solid fa-pepper-hot"></i> سبايسي</span>`;
+          } else if (p.bestSeller) {
+            badgeHtml = `<span class="menu-card-badge" style="background-color: var(--primary-yellow); color: #121214; font-size: 0.65rem; top: 8px; right: 8px;"><i class="fa-solid fa-fire"></i> الأكثر طلباً</span>`;
+          }
+
+          const title = AppState.selectedLang === 'ar' ? p.nameAr : p.nameEn;
+          const desc = AppState.selectedLang === 'ar' ? p.descAr : p.descEn;
+
+          let imageHtml = '';
+          const imgSource = p.svg || p.imageUrl || '';
+          if (imgSource.trim().startsWith('<svg')) {
+            imageHtml = imgSource;
+          } else if (imgSource.trim() !== '') {
+            imageHtml = `<img src="${imgSource}" alt="" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+          } else {
+            imageHtml = `<span style="font-size: 1.25rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>`;
+          }
+
+          cardsHtml += `
+            <div class="admin-product-card" style="display: flex; gap: 12px; background-color: #18181C; border: 1px solid var(--dark-border); border-radius: 10px; padding: 12px; position: relative;">
+              ${badgeHtml}
+              <div style="width: 70px; height: 70px; border-radius: 8px; background-color: #111113; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative;">
+                ${imageHtml}
+              </div>
+              <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; text-align: right;">
+                <div>
+                  <h5 style="font-size: 0.85rem; font-weight: bold; color: #fff; margin-bottom: 2px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-left: 55px;">${title}</h5>
+                  <p style="font-size: 0.7rem; color: var(--text-light-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${desc}</p>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; direction: ltr;">
+                  <div style="font-weight: 800; color: var(--primary-yellow); font-size: 0.85rem;">${p.price.toFixed(2)} <span style="font-size: 0.65rem;">SAR</span></div>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="sim-btn edit-product-btn" data-id="${p.id}" style="padding: 4px 8px; font-size: 0.7rem;"><i class="fa-solid fa-pen-to-square"></i> تعديل</button>
+                    <button class="sim-btn delete-product-btn" data-id="${p.id}" style="padding: 4px 8px; font-size: 0.7rem; background-color: rgba(239, 68, 68, 0.1); border-color: var(--color-new); color: var(--color-new);"><i class="fa-solid fa-trash"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        productsHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">${cardsHtml}</div>`;
+      }
+
+      groupDiv.innerHTML = `
+        <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--primary-yellow); margin-bottom: 12px; border-bottom: 1px dashed var(--dark-border); padding-bottom: 8px; text-align: right;">
+          <i class="fa-solid fa-folder-open"></i> ${cat.nameAr} / ${cat.nameEn}
+        </h4>
+        ${productsHtml}
+      `;
+      productsCatalogContainer.appendChild(groupDiv);
+    });
+
+    productsCatalogContainer.querySelectorAll('.edit-product-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        openProductEditor(id);
+      });
+    });
+
+    productsCatalogContainer.querySelectorAll('.delete-product-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        deleteProduct(id);
+      });
+    });
+  }
+}
+
+function openProductEditor(productId) {
+  const p = MENU.find(item => item.id === productId);
+  if (!p) return;
+
+  const modal = document.getElementById('modal-product-editor');
+  if (!modal) return;
+
+  document.getElementById('product-editor-title').innerText = AppState.selectedLang === 'ar' ? 'تعديل صنف الوجبة' : 'Edit Menu Item';
+  document.getElementById('edit-product-id').value = p.id;
+  document.getElementById('edit-prod-name-ar').value = p.nameAr;
+  document.getElementById('edit-prod-name-en').value = p.nameEn;
+  document.getElementById('edit-prod-desc-ar').value = p.descAr || '';
+  document.getElementById('edit-prod-desc-en').value = p.descEn || '';
+  document.getElementById('edit-prod-price').value = p.price;
+
+  const categorySelect = document.getElementById('edit-prod-category');
+  if (categorySelect) {
+    categorySelect.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      if (cat.id === 'all') return;
+      const opt = document.createElement('option');
+      opt.value = cat.id;
+      opt.innerText = AppState.selectedLang === 'ar' ? cat.nameAr : cat.nameEn;
+      if (cat.id === p.cat) {
+        opt.selected = true;
+      }
+      categorySelect.appendChild(opt);
+    });
+  }
+
+  document.getElementById('edit-prod-spicy').checked = !!p.spicy;
+  document.getElementById('edit-prod-bestseller').checked = !!p.bestSeller;
+
+  const previewBox = document.getElementById('product-image-preview-box');
+  const urlInput = document.getElementById('edit-prod-url');
+  const fileInput = document.getElementById('edit-prod-file');
+
+  if (fileInput) fileInput.value = '';
+
+  const imgSource = p.svg || p.imageUrl || '';
+  if (imgSource.trim().startsWith('<svg')) {
+    selectedBase64Image = '';
+    urlInput.value = '';
+    previewBox.innerHTML = imgSource;
+  } else if (imgSource.trim() !== '') {
+    if (imgSource.startsWith('data:image')) {
+      selectedBase64Image = imgSource;
+      urlInput.value = '';
+    } else {
+      selectedBase64Image = '';
+      urlInput.value = imgSource;
+    }
+    previewBox.innerHTML = `<img src="${imgSource}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">`;
+  } else {
+    selectedBase64Image = '';
+    urlInput.value = '';
+    previewBox.innerHTML = `<span style="font-size: 1.5rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>`;
+  }
+
+  modal.style.display = 'flex';
+}
+
+async function deleteProduct(productId) {
+  if (confirm(AppState.selectedLang === 'ar' ? "هل أنت متأكد من رغبتك في حذف هذا الصنف من المنيو نهائياً؟" : "Are you sure you want to permanently delete this menu item?")) {
+    if (supabaseClient) {
+      try {
+        const { error } = await supabaseClient
+          .from('products')
+          .delete()
+          .eq('id', productId);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error deleting product from Supabase:", err);
+      }
+    }
+
+    const idx = MENU.findIndex(m => m.id === productId);
+    if (idx > -1) {
+      MENU.splice(idx, 1);
+    }
+
+    showToastNotification(
+      AppState.selectedLang === 'ar' ? 'تم حذف الصنف بنجاح!' : 'Item deleted successfully!',
+      'new'
+    );
+
+    renderAdminMenuManage();
+    
+    // Also re-render other components locally
+    const menuContainer = document.getElementById('menu-catalog');
+    if (menuContainer) renderMenuCatalog();
+  }
+}
+
+async function deleteCategory(catId) {
+  if (confirm(AppState.selectedLang === 'ar' ? "تحذير: سيؤدي حذف هذا القسم لحذف جميع الوجبات التابعة له أيضاً! هل تريد الاستمرار؟" : "Warning: Deleting this category will delete all nested menu items too! Proceed?")) {
+    if (supabaseClient) {
+      try {
+        const { error } = await supabaseClient
+          .from('categories')
+          .delete()
+          .eq('id', catId);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error deleting category from Supabase:", err);
+      }
+    }
+
+    // Delete nested products locally
+    MENU = MENU.filter(p => p.cat !== catId);
+
+    // Delete category locally
+    CATEGORIES = CATEGORIES.filter(c => c.id !== catId);
+
+    showToastNotification(
+      AppState.selectedLang === 'ar' ? 'تم حذف القسم وجميع وجباته بنجاح!' : 'Category and its items deleted successfully!',
+      'new'
+    );
+
+    renderAdminMenuManage();
+
+    // Re-render user views if active
+    const catContainer = document.getElementById('categories-scroll');
+    if (catContainer) renderMenuCategories();
+    const menuContainer = document.getElementById('menu-catalog');
+    if (menuContainer) renderMenuCatalog();
+  }
 }
 
 // ==========================================================================
@@ -2041,6 +2661,7 @@ function initCustomerView() {
 }
 
 function initKitchenView() {
+  initStaffLoginPortal('kitchen');
   renderKDSBoard();
   
   // Kitchen Quick Simulator button
@@ -2053,6 +2674,7 @@ function initKitchenView() {
 }
 
 function initCashierView() {
+  initStaffLoginPortal('cashier');
   renderCashierOrdersTable();
   updateCashierMetrics();
 
@@ -2114,6 +2736,7 @@ function initCashierView() {
 // 14.5 OWNER & MANAGER ADMIN VIEW CONTROLLER
 // ==========================================================================
 function initAdminView() {
+  initStaffLoginPortal('admin');
   renderAdminDashboard();
   renderAdminQRCodes();
 
@@ -2180,6 +2803,290 @@ function initAdminView() {
       }
     });
   }
+
+  // ==========================================
+  // Add Category Modal triggers
+  // ==========================================
+  const btnAddCat = document.getElementById('btn-add-cat-modal');
+  if (btnAddCat) {
+    btnAddCat.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('edit-cat-id').value = '';
+      document.getElementById('edit-cat-name-ar').value = '';
+      document.getElementById('edit-cat-name-en').value = '';
+      document.getElementById('modal-category-editor').style.display = 'flex';
+    });
+  }
+
+  const btnCloseCat = document.getElementById('btn-close-cat-modal');
+  if (btnCloseCat) {
+    btnCloseCat.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('modal-category-editor').style.display = 'none';
+    });
+  }
+
+  const formCat = document.getElementById('form-category-editor');
+  if (formCat) {
+    formCat.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const catId = document.getElementById('edit-cat-id').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      const nameAr = document.getElementById('edit-cat-name-ar').value.trim();
+      const nameEn = document.getElementById('edit-cat-name-en').value.trim();
+
+      if (!catId) return;
+
+      const categoryPayload = { id: catId, name_ar: nameAr, name_en: nameEn };
+
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('categories').upsert(categoryPayload);
+          if (error) throw error;
+        } catch (err) {
+          console.error("Error saving category:", err);
+        }
+      }
+
+      const existingIdx = CATEGORIES.findIndex(c => c.id === catId);
+      const newCat = { id: catId, nameAr: nameAr, nameEn: nameEn };
+      if (existingIdx > -1) {
+        CATEGORIES[existingIdx] = newCat;
+      } else {
+        CATEGORIES.push(newCat);
+      }
+
+      document.getElementById('modal-category-editor').style.display = 'none';
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تمت إضافة قسم المنيو الجديد بنجاح!' : 'Category added successfully!',
+        'ready'
+      );
+      renderAdminMenuManage();
+    });
+  }
+
+  // ==========================================
+  // Add/Edit Product Modal triggers
+  // ==========================================
+  const btnAddProduct = document.getElementById('btn-add-product-modal');
+  if (btnAddProduct) {
+    btnAddProduct.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('product-editor-title').innerText = AppState.selectedLang === 'ar' ? 'إضافة صنف وجبة جديد' : 'Add New Menu Item';
+      document.getElementById('edit-product-id').value = '';
+      document.getElementById('edit-prod-name-ar').value = '';
+      document.getElementById('edit-prod-name-en').value = '';
+      document.getElementById('edit-prod-desc-ar').value = '';
+      document.getElementById('edit-prod-desc-en').value = '';
+      document.getElementById('edit-prod-price').value = '';
+      document.getElementById('edit-prod-spicy').checked = false;
+      document.getElementById('edit-prod-bestseller').checked = false;
+      document.getElementById('edit-prod-url').value = '';
+      if (document.getElementById('edit-prod-file')) document.getElementById('edit-prod-file').value = '';
+      selectedBase64Image = '';
+      document.getElementById('product-image-preview-box').innerHTML = `<span style="font-size: 1.5rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>`;
+
+      // Populate categories select
+      const categorySelect = document.getElementById('edit-prod-category');
+      if (categorySelect) {
+        categorySelect.innerHTML = '';
+        CATEGORIES.forEach(cat => {
+          if (cat.id === 'all') return;
+          const opt = document.createElement('option');
+          opt.value = cat.id;
+          opt.innerText = AppState.selectedLang === 'ar' ? cat.nameAr : cat.nameEn;
+          categorySelect.appendChild(opt);
+        });
+      }
+
+      document.getElementById('modal-product-editor').style.display = 'flex';
+    });
+  }
+
+  const btnCloseProduct = document.getElementById('btn-close-product-modal');
+  if (btnCloseProduct) {
+    btnCloseProduct.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('modal-product-editor').style.display = 'none';
+    });
+  }
+
+  // Image uploader hooks
+  const fileInput = document.getElementById('edit-prod-file');
+  const triggerBtn = document.getElementById('btn-trigger-file-upload');
+  const urlInput = document.getElementById('edit-prod-url');
+  const previewBox = document.getElementById('product-image-preview-box');
+
+  if (triggerBtn && fileInput) {
+    triggerBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          selectedBase64Image = event.target.result;
+          if (previewBox) {
+            previewBox.innerHTML = `<img src="${selectedBase64Image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">`;
+          }
+          if (urlInput) urlInput.value = '';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  if (urlInput) {
+    urlInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      if (val) {
+        selectedBase64Image = '';
+        if (fileInput) fileInput.value = '';
+        if (previewBox) {
+          previewBox.innerHTML = `<img src="${val}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;" onerror="this.src=''; this.parentNode.innerHTML='<span style=\x22font-size: 1.5rem; color: var(--text-light-muted);\x22><i class=\x22fa-solid fa-image\x22></i></span>';">`;
+        }
+      } else {
+        if (previewBox) {
+          previewBox.innerHTML = `<span style="font-size: 1.5rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>`;
+        }
+      }
+    });
+  }
+
+  const formProd = document.getElementById('form-product-editor');
+  if (formProd) {
+    formProd.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const productId = document.getElementById('edit-product-id').value.trim();
+      const nameAr = document.getElementById('edit-prod-name-ar').value.trim();
+      const nameEn = document.getElementById('edit-prod-name-en').value.trim();
+      const descAr = document.getElementById('edit-prod-desc-ar').value.trim();
+      const descEn = document.getElementById('edit-prod-desc-en').value.trim();
+      const price = parseFloat(document.getElementById('edit-prod-price').value);
+      const categoryId = document.getElementById('edit-prod-category').value;
+      const isSpicy = document.getElementById('edit-prod-spicy').checked;
+      const isBestSeller = document.getElementById('edit-prod-bestseller').checked;
+      const directUrl = document.getElementById('edit-prod-url').value.trim();
+
+      let finalImageSource = '';
+      if (selectedBase64Image) {
+        finalImageSource = selectedBase64Image;
+      } else if (directUrl) {
+        finalImageSource = directUrl;
+      }
+
+      let targetId = productId;
+      if (!targetId) {
+        const nextNum = MENU.length > 0 ? Math.max(...MENU.map(m => {
+          const num = parseInt(m.id.replace(/[^0-9]/g, ''));
+          return isNaN(num) ? 0 : num;
+        })) + 1 : 1;
+        targetId = `pr-${nextNum}`;
+      }
+
+      const productPayload = {
+        id: targetId,
+        category_id: categoryId,
+        name_ar: nameAr,
+        name_en: nameEn,
+        description_ar: descAr,
+        description_en: descEn,
+        price: price,
+        image_url: finalImageSource,
+        is_spicy: isSpicy,
+        is_bestseller: isBestSeller
+      };
+
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('products').upsert(productPayload);
+          if (error) throw error;
+        } catch (err) {
+          console.error("Error saving product:", err);
+        }
+      }
+
+      const localProduct = {
+        id: targetId,
+        cat: categoryId,
+        nameAr: nameAr,
+        nameEn: nameEn,
+        descAr: descAr,
+        descEn: descEn,
+        price: price,
+        spicy: isSpicy,
+        bestSeller: isBestSeller,
+        svg: finalImageSource.startsWith('<svg') ? finalImageSource : '',
+        imageUrl: !finalImageSource.startsWith('<svg') ? finalImageSource : null
+      };
+
+      const existingIdx = MENU.findIndex(m => m.id === targetId);
+      if (existingIdx > -1) {
+        MENU[existingIdx] = localProduct;
+      } else {
+        MENU.push(localProduct);
+      }
+
+      document.getElementById('modal-product-editor').style.display = 'none';
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم حفظ صنف الوجبة وتحديث المنيو بنجاح!' : 'Menu item saved successfully!',
+        'ready'
+      );
+      renderAdminMenuManage();
+
+      // Refresh customer menu locally if it exists
+      const menuContainer = document.getElementById('menu-catalog');
+      if (menuContainer) renderMenuCatalog();
+    });
+  }
+
+  // Set total tables input default value on load
+  const inputTotalTables = document.getElementById('input-total-tables');
+  if (inputTotalTables) {
+    inputTotalTables.value = AppState.totalTables || 12;
+  }
+
+  // Handle tables count save
+  const btnSaveTables = document.getElementById('btn-save-tables-count');
+  if (btnSaveTables) {
+    btnSaveTables.addEventListener('click', async () => {
+      AudioSynthesizer.playBeep();
+      const val = parseInt(document.getElementById('input-total-tables').value) || 12;
+      
+      if (val < 1 || val > 100) {
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? 'الرجاء إدخال عدد طاولات صحيح بين ١ و ١٠٠!' : 'Please enter a valid table count between 1 and 100!',
+          'new'
+        );
+        return;
+      }
+
+      AppState.totalTables = val;
+      localStorage.setItem('HIPROUST_TOTAL_TABLES', val);
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient
+            .from('settings')
+            .upsert({ key: 'total_tables', value: String(val) });
+        } catch (err) {
+          console.warn("Supabase settings upsert error:", err);
+        }
+      }
+
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم تحديث عدد طاولات الصالة ورموز الـ QR بنجاح!' : 'Tables count and QR codes updated successfully!',
+        'ready'
+      );
+
+      // Refresh QRs grid and dashboards tables activities
+      renderAdminQRCodes();
+      renderAdminDashboard();
+    });
+  }
 }
 
 function renderAdminQRCodes() {
@@ -2235,8 +3142,9 @@ function renderAdminQRCodes() {
   `;
   qrGrid.appendChild(takeawayCard);
 
-  // 2. Generate Tables 1 to 12 QR Cards
-  for (let i = 1; i <= 12; i++) {
+  // 2. Generate Tables 1 to total QR Cards
+  const total = AppState.totalTables || 12;
+  for (let i = 1; i <= total; i++) {
     const tableUrl = `${baseUri}?table=${i}`;
     const tableQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(tableUrl)}`;
 
