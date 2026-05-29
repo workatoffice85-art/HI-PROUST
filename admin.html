@@ -365,22 +365,7 @@
       </nav>
     </div>
 
-    <div class="admin-sidebar-footer">
-      <div class="view-switcher" style="background: rgba(255,255,255,0.03); flex-direction: column; gap: 8px; border-radius: 12px; padding: 8px; border: 1px solid var(--dark-border);">
-        <a href="index.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
-          <i class="fa-solid fa-mobile-screen-button" style="color: var(--primary-yellow);"></i>
-          <span style="font-size: 0.8rem;">شاشة جوال العميل</span>
-        </a>
-        <a href="kitchen.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
-          <i class="fa-solid fa-kitchen-set" style="color: var(--primary-yellow);"></i>
-          <span style="font-size: 0.8rem;">شاشة المطبخ (KDS)</span>
-        </a>
-        <a href="cashier.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
-          <i class="fa-solid fa-cash-register" style="color: var(--primary-yellow);"></i>
-          <span style="font-size: 0.8rem;">شاشة الكاشير والمحاسب</span>
-        </a>
-      </div>
-    </div>
+
   </aside>
 
   <!-- ==========================================================================
@@ -393,12 +378,7 @@
         <p>التحكم التشغيلي، مراقبة المبيعات وتدفق الطلبات المباشر لمطعم هاي بروست</p>
       </div>
 
-      <div class="quick-sim-bar">
-        <button class="sim-btn" id="btn-auto-order" style="padding: 8px 16px; font-size: 0.85rem;">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <span>محاكاة طلب زبون جديد</span>
-        </button>
-      </div>
+
     </header>
 
     <main class="admin-content-area">
@@ -582,18 +562,15 @@
       <div class="admin-tab-panel" id="panel-settings">
         <div class="admin-card" style="max-width: 600px;">
           <div class="admin-card-header">
-            <h3><i class="fa-solid fa-gears" style="color: var(--primary-yellow);"></i> لوحة التحكم في قاعدة البيانات المحاكاة</h3>
+            <h3><i class="fa-solid fa-gears" style="color: var(--primary-yellow);"></i> لوحة التحكم في قاعدة البيانات وإدارة النظام</h3>
           </div>
           <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 10px;">
             <p style="font-size: 0.85rem; color: var(--text-light-muted); line-height: 1.6;">
-              تتيح لك لوحة التحكم هذه إعادة تصفير النظام أو توليد كميات كبيرة من الطلبات العشوائية لمحاكاة ساعة الذروة في مطعم هاي بروست ومراقبة استجابة الشاشات الأخرى.
+              تتيح لك لوحة التحكم هذه إعادة تصفير النظام وحذف كل طلبيات اليوم لتنظيف السجلات والبدء بيوم عمل جديد في مطعم هاي بروست.
             </p>
             <div style="display: flex; gap: 12px;">
-              <button class="sim-btn" id="btn-admin-seed" style="background-color: rgba(16, 185, 129, 0.15); border-color: var(--color-ready); color: var(--color-ready); padding: 10px 18px;">
-                <i class="fa-solid fa-database"></i> شحن طلبات محاكاة جديدة
-              </button>
               <button class="sim-btn" id="btn-admin-clear" style="background-color: rgba(239, 68, 68, 0.15); border-color: var(--color-new); color: var(--color-new); padding: 10px 18px;">
-                <i class="fa-solid fa-trash-can"></i> حذف كل طلبيات اليوم النشطة
+                <i class="fa-solid fa-trash-can"></i> تصفير وحذف كل طلبيات اليوم النشطة
               </button>
             </div>
           </div>
