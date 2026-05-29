@@ -2162,7 +2162,12 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
   .phone-screen {
     margin: 0 !important;
     border-radius: 0 !important;
-    padding-top: 15px !important; /* Standard safe area padding */
+    padding-top: 0 !important;
+    background-color: transparent !important;
+  }
+
+  .screen-state {
+    top: 0 !important;
   }
   
   .phone-bottom-bar {

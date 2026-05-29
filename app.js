@@ -228,7 +228,8 @@ const TRANSLATIONS = {
     lblQrTableStatus: "تم مسح الرمز للطاولة:",
     qrTableDisplayPrefix: "طاولة ",
     lblQrTakeawayStatus: "تم مسح الرمز للسفري:",
-    qrTakeawayDisplay: "طلب سفري (تيك أواي)"
+    qrTakeawayDisplay: "طلب سفري (تيك أواي)",
+    language: "لغة التطبيق / Language:"
   },
   en: {
     splashTitle: "Hi Proust",
@@ -277,7 +278,8 @@ const TRANSLATIONS = {
     lblQrTableStatus: "Table QR Code Scanned:",
     qrTableDisplayPrefix: "Table ",
     lblQrTakeawayStatus: "Takeaway QR Scanned:",
-    qrTakeawayDisplay: "Takeaway / Quick Pickup"
+    qrTakeawayDisplay: "Takeaway / Quick Pickup",
+    language: "App Language / لغة التطبيق:"
   }
 };
 
@@ -2401,6 +2403,7 @@ function openProductEditor(productId) {
   }
 
   modal.style.display = 'flex';
+  modal.classList.add('active');
 }
 
 async function deleteProduct(productId) {
@@ -2815,7 +2818,9 @@ function initAdminView() {
       document.getElementById('edit-cat-id').value = '';
       document.getElementById('edit-cat-name-ar').value = '';
       document.getElementById('edit-cat-name-en').value = '';
-      document.getElementById('modal-category-editor').style.display = 'flex';
+      const catModal = document.getElementById('modal-category-editor');
+      catModal.style.display = 'flex';
+      catModal.classList.add('active');
     });
   }
 
@@ -2823,7 +2828,9 @@ function initAdminView() {
   if (btnCloseCat) {
     btnCloseCat.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      document.getElementById('modal-category-editor').style.display = 'none';
+      const catModal = document.getElementById('modal-category-editor');
+      catModal.style.display = 'none';
+      catModal.classList.remove('active');
     });
   }
 
@@ -2856,7 +2863,9 @@ function initAdminView() {
         CATEGORIES.push(newCat);
       }
 
-      document.getElementById('modal-category-editor').style.display = 'none';
+      const catModal = document.getElementById('modal-category-editor');
+      catModal.style.display = 'none';
+      catModal.classList.remove('active');
       showToastNotification(
         AppState.selectedLang === 'ar' ? 'تمت إضافة قسم المنيو الجديد بنجاح!' : 'Category added successfully!',
         'ready'
@@ -2899,7 +2908,9 @@ function initAdminView() {
         });
       }
 
-      document.getElementById('modal-product-editor').style.display = 'flex';
+      const prodModal = document.getElementById('modal-product-editor');
+      prodModal.style.display = 'flex';
+      prodModal.classList.add('active');
     });
   }
 
@@ -2907,7 +2918,9 @@ function initAdminView() {
   if (btnCloseProduct) {
     btnCloseProduct.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      document.getElementById('modal-product-editor').style.display = 'none';
+      const prodModal = document.getElementById('modal-product-editor');
+      prodModal.style.display = 'none';
+      prodModal.classList.remove('active');
     });
   }
 
@@ -3031,7 +3044,9 @@ function initAdminView() {
         MENU.push(localProduct);
       }
 
-      document.getElementById('modal-product-editor').style.display = 'none';
+      const prodModal = document.getElementById('modal-product-editor');
+      prodModal.style.display = 'none';
+      prodModal.classList.remove('active');
       showToastNotification(
         AppState.selectedLang === 'ar' ? 'تم حفظ صنف الوجبة وتحديث المنيو بنجاح!' : 'Menu item saved successfully!',
         'ready'
