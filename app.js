@@ -1357,7 +1357,11 @@ function advanceOrderStatus(orderId) {
       })
       .eq('id', order.id)
       .then(res => {
-        console.log('Order status updated in Supabase:', res);
+        if (res.error) {
+          console.error('Order status update failed in Supabase:', res.error);
+        } else {
+          console.log('Order status updated in Supabase successfully:', res);
+        }
       });
   }
   
@@ -1653,7 +1657,17 @@ function processCashierPayment() {
       })
       .eq('id', selectedOrderForCheckout.id)
       .then(res => {
-        console.log('Payment processed in Supabase:', res);
+        if (res.error) {
+          console.error('Payment update failed in Supabase:', res.error);
+          showToastNotification(
+            AppState.selectedLang === 'ar' 
+              ? 'خطأ: لم يتم التحديث سحابياً! يرجى تشغيل كود ALTER في Supabase لإضافة عمود audit_log.' 
+              : 'Error: Cloud update failed! Please run ALTER code in Supabase to add audit_log column.',
+            'new'
+          );
+        } else {
+          console.log('Payment processed in Supabase successfully:', res);
+        }
       });
   }
 
