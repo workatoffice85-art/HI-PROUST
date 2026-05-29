@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS public.orders (
   delivery_type TEXT NOT NULL, -- Delivery type: 'dine-in' or 'takeaway'
   status TEXT DEFAULT 'new'::text NOT NULL, -- Order status: 'new', 'preparing', 'ready', 'completed'
   payment_status TEXT DEFAULT 'unpaid'::text NOT NULL, -- Payment status: 'unpaid' or 'paid'
-  payment_method TEXT -- Payment method: 'cash', 'mada', 'apple' (nullable until paid)
+  payment_method TEXT, -- Payment method: 'cash', 'mada', 'apple' (nullable until paid)
+  audit_log JSONB DEFAULT '[]'::jsonb -- Dynamic operational audit trail log array
 );
 
 -- 2. Enable Row Level Security (RLS)
@@ -41,3 +42,9 @@ WITH CHECK (true);
 -- 3. Find the "supabase_realtime" publication and click "Edit".
 -- 4. Toggle the active switch next to the "orders" table to ON (Active).
 -- ==========================================================================
+
+-- ==========================================================================
+-- 4. DATABASE MIGRATION FOR MULTI-USER AUDIT TRAIL
+-- Run this if your orders table is already created:
+-- ==========================================================================
+-- ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS audit_log JSONB DEFAULT '[]'::jsonb;

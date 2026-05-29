@@ -2243,3 +2243,257 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ==========================================================================
+   5. MULTI-USER STAFF PORTAL & AUDIT TIMELINE CUSTOM STYLES
+   ========================================================================== */
+.staff-portal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(7, 7, 9, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  direction: rtl;
+}
+
+.staff-login-card {
+  background: linear-gradient(135deg, #18181C 0%, #101012 100%);
+  border: 2px solid var(--dark-border);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  border-radius: 24px;
+  width: 90%;
+  max-width: 380px;
+  padding: 28px;
+  animation: slideUpStaff 0.3s ease-out forwards;
+}
+
+@keyframes slideUpStaff {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.staff-profiles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.staff-profile-item {
+  background-color: #111113;
+  border: 1px solid var(--dark-border);
+  border-radius: 16px;
+  padding: 14px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-profile-item:hover {
+  border-color: var(--primary-yellow);
+  background-color: rgba(255, 193, 7, 0.05);
+  transform: translateY(-4px);
+}
+
+.staff-profile-item .avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #1A1A1E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  border: 2px solid var(--dark-border);
+  transition: border-color var(--transition-fast);
+}
+
+.staff-profile-item:hover .avatar {
+  border-color: var(--primary-yellow);
+}
+
+.staff-profile-item .name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-light-muted);
+  transition: color var(--transition-fast);
+}
+
+.staff-profile-item:hover .name {
+  color: #fff;
+}
+
+/* Keypad styling */
+.keypad-btn {
+  background-color: #1A1A1E;
+  border: 1px solid var(--dark-border);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 800;
+  padding: 14px 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.keypad-btn:active {
+  background-color: var(--primary-yellow);
+  color: var(--text-dark);
+  border-color: var(--primary-yellow);
+}
+
+.keypad-btn.text {
+  font-weight: 700;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #2D2D35;
+  border: 1px solid var(--dark-border);
+  transition: all var(--transition-fast);
+}
+
+.pin-dot.filled {
+  background-color: var(--primary-yellow);
+  border-color: var(--primary-yellow);
+  box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+}
+
+.shake-anim {
+  animation: shakePortal 0.4s ease;
+}
+
+@keyframes shakePortal {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+/* Active staff header badge */
+.active-staff-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: rgba(255,255,255,0.05);
+  border: 1px solid var(--dark-border);
+  padding: 6px 12px;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+#cashier-body .active-staff-header-badge {
+  background-color: rgba(0,0,0,0.03);
+  border: 1px solid var(--light-border);
+  color: var(--text-dark);
+}
+
+.active-staff-header-badge .avatar-circle {
+  font-size: 1.1rem;
+}
+
+.active-staff-header-badge .btn-logout {
+  background: none;
+  border: none;
+  color: var(--primary-red);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.95rem;
+  transition: opacity 0.15s ease;
+}
+
+.active-staff-header-badge .btn-logout:hover {
+  opacity: 0.7;
+}
+
+/* Vertical Timeline Audit log rendering */
+.audit-timeline-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding: 10px 0 10px 10px;
+}
+
+.audit-timeline-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  right: 18px;
+  width: 2px;
+  background-color: #E2E8F0;
+  z-index: 1;
+}
+
+#cashier-body .audit-timeline-wrapper::before {
+  background-color: var(--light-border);
+}
+
+#kitchen-body .audit-timeline-wrapper::before,
+#admin-body .audit-timeline-wrapper::before {
+  background-color: var(--dark-border);
+}
+
+.audit-timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
+  align-items: flex-start;
+}
+
+.audit-timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 3px solid #CBD5E1;
+  flex-shrink: 0;
+  margin-top: 4px;
+  margin-right: 12px;
+}
+
+.audit-timeline-dot.created { border-color: #94A3B8; background-color: #94A3B8; }
+.audit-timeline-dot.preparing { border-color: #F59E0B; background-color: #F59E0B; }
+.audit-timeline-dot.ready { border-color: #10B981; background-color: #10B981; }
+.audit-timeline-dot.completed { border-color: #3B82F6; background-color: #3B82F6; }
+.audit-timeline-dot.paid { border-color: #059669; background-color: #059669; }
+
+.audit-timeline-content {
+  flex: 1;
+}
+
+.audit-timeline-content .title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+#kitchen-body .audit-timeline-content .title,
+#admin-body .audit-timeline-content .title {
+  color: #fff;
+}
+
+.audit-timeline-content .meta {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
