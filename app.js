@@ -315,6 +315,8 @@ function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_ACTIVE_ORDER_ID', AppState.activeOrderId || '');
   localStorage.setItem('HIPROUST_CUSTOMER_NAME', AppState.customerName || '');
   localStorage.setItem('HIPROUST_PHONE_NUMBER', AppState.phoneNumber || '');
+  localStorage.setItem('HIPROUST_SELECTED_TABLE', AppState.selectedTable || 1);
+  localStorage.setItem('HIPROUST_DELIVERY_TYPE', AppState.deliveryType || 'dine-in');
 }
 
 async function loadFromLocalStorage() {
@@ -330,6 +332,16 @@ async function loadFromLocalStorage() {
   AppState.activeOrderId = localStorage.getItem('HIPROUST_ACTIVE_ORDER_ID') || null;
   AppState.customerName = localStorage.getItem('HIPROUST_CUSTOMER_NAME') || '';
   AppState.phoneNumber = localStorage.getItem('HIPROUST_PHONE_NUMBER') || '';
+  
+  const storedTable = localStorage.getItem('HIPROUST_SELECTED_TABLE');
+  if (storedTable) {
+    AppState.selectedTable = parseInt(storedTable) || 1;
+  }
+  
+  const storedDelType = localStorage.getItem('HIPROUST_DELIVERY_TYPE');
+  if (storedDelType) {
+    AppState.deliveryType = storedDelType || 'dine-in';
+  }
   
   // Load total tables from local storage
   const storedTotalTables = localStorage.getItem('HIPROUST_TOTAL_TABLES');
@@ -2640,6 +2652,8 @@ function initCustomerView() {
     btnNewOrder.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
       AppState.activeOrderId = null;
+      AppState.customerName = "";
+      AppState.phoneNumber = "";
       currentPhoneDigits = "";
       document.getElementById('name-input').value = "";
       renderPhoneDisplay();
@@ -2679,6 +2693,17 @@ function initCustomerView() {
       AppState.activeOrderId = null;
       saveToLocalStorage();
     }
+  } else if (AppState.phoneNumber && AppState.customerName) {
+    // Restore current phone digits cache for profile editing
+    currentPhoneDigits = AppState.phoneNumber;
+    renderPhoneDisplay();
+    switchMobileScreen('mobile-menu');
+    showToastNotification(
+      AppState.selectedLang === 'ar' 
+        ? `مرحباً بعودتك! تم استئناف جلسة طلبك لـ ${AppState.customerName} 🔥` 
+        : `Welcome back! Resumed ordering session for ${AppState.customerName} 🔥`,
+      'ready'
+    );
   }
 }
 
