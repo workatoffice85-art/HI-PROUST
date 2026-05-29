@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المطبخ الذكي KDS | هاي بروست - شاشة الطهاة</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body id="kitchen-body" class="rtl" style="background-color: var(--dark-bg); height: 100vh; display: flex; flex-direction: column;">
+
+  <!-- ==========================================================================
+       KITCHEN HEADER
+       ========================================================================== -->
+  <header style="background: #111115; border-bottom: 2px solid var(--primary-yellow);">
+    <div class="brand-wrapper">
+      <svg class="brand-logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="48" fill="#FFC107" stroke="#C62828" stroke-width="4"/>
+        <circle cx="50" cy="46" r="22" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
+        <path d="M 44 46 L 56 46 L 50 58 Z" fill="#FF9800" stroke="#333" stroke-width="2"/>
+        <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
+        <path d="M 28 64 C 28 54, 40 54, 50 58 C 60 54, 72 54, 72 64 C 72 74, 50 78, 50 78" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-title" style="color: var(--primary-yellow);">شاشة المطبخ (KDS)</span>
+        <span class="brand-subtitle" style="color: var(--text-light-muted);">هاي بروست | Hi Proust</span>
+      </div>
+    </div>
+
+    <!-- Quick switch links for admin developer convenience -->
+    <div class="view-switcher" style="background: rgba(255,255,255,0.03);">
+      <a href="index.html" target="_blank" class="switcher-btn" style="text-decoration: none;">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+        <span>فتح هاتف العميل</span>
+      </a>
+      <a href="cashier.html" target="_blank" class="switcher-btn" style="text-decoration: none;">
+        <i class="fa-solid fa-cash-register"></i>
+        <span>فتح لوحة الكاشير</span>
+      </a>
+    </div>
+
+    <div class="quick-sim-bar">
+      <button class="sim-btn" id="btn-auto-order">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <span>توليد طلب محاكاة</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       KITCHEN MAIN SCREEN
+       ========================================================================== -->
+  <main style="flex: 1; display: flex; overflow: hidden; background-color: var(--dark-bg); padding: 16px; flex-direction: column; gap: 16px;">
+    
+    <div class="kds-header" style="border-bottom: none; padding-bottom: 0;">
+      <div class="kds-title-wrap">
+        <i class="fa-solid fa-kitchen-set" style="font-size: 1.8rem; color: var(--primary-yellow);"></i>
+        <div>
+          <h2 style="font-weight: 800; font-size: 1.3rem; color: #fff;">لوحة تحضير الطلبات الحية</h2>
+          <span style="font-size: 0.8rem; color: var(--text-light-muted);">مزامنة لحظية مع هواتف الزوار وأجهزة الكاشير</span>
+        </div>
+        <div class="kds-live-badge">
+          <span></span>
+          <span>بث حي مباشر</span>
+        </div>
+      </div>
+
+      <div class="kds-stats-panel">
+        <div class="kds-stat-item">
+          <span class="label">طلبات بانتظار التحضير:</span>
+          <span class="val" style="color: var(--color-new);" id="kds-count-new">0</span>
+        </div>
+        <div class="kds-stat-item">
+          <span class="label">قيد القلي والتحضير:</span>
+          <span class="val" style="color: var(--color-prep);" id="kds-count-prep">0</span>
+        </div>
+        <div class="kds-stat-item">
+          <span class="label">طلبات جاهزة للتسليم:</span>
+          <span class="val" style="color: var(--color-ready);" id="kds-count-ready">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KDS Board Columns -->
+    <div class="kds-board" style="flex: 1;">
+      
+      <!-- COLUMN 1: NEW ORDERS -->
+      <div class="kds-column">
+        <div class="kds-column-header new">
+          <span>طلب جديد (جديد)</span>
+          <span class="kds-col-count" id="kds-col-new-count">0</span>
+        </div>
+        <div class="kds-cards-stack" id="kds-stack-new">
+          <!-- Cards added dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- COLUMN 2: IN PREPARATION -->
+      <div class="kds-column">
+        <div class="kds-column-header prep">
+          <span>تحت القلي والتجهيز (قيد التحضير)</span>
+          <span class="kds-col-count" id="kds-col-prep-count">0</span>
+        </div>
+        <div class="kds-cards-stack" id="kds-stack-prep">
+          <!-- Cards added dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- COLUMN 3: READY FOR DELIVERY -->
+      <div class="kds-column">
+        <div class="kds-column-header ready">
+          <span>جاهز للتسليم للعميل</span>
+          <span class="kds-col-count" id="kds-col-ready-count">0</span>
+        </div>
+        <div class="kds-cards-stack" id="kds-stack-ready">
+          <!-- Cards added dynamically via JS -->
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- TOAST ALERTS WRAPPER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Supabase JS Client library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Unified JS Controller -->
+  <script src="app.js"></script>
+</body>
+</html>

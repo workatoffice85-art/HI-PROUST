@@ -1736,44 +1736,21 @@ function renderCustomerProfileScreen() {
 // ==========================================================================
 // 14. INITIALIZATION & BINDING EVENTS
 // ==========================================================================
-window.addEventListener('DOMContentLoaded', () => {
-  // Load local data and mock pre-populations
-  loadFromLocalStorage();
-  prePopulateHistoricalOrders();
+// ==========================================================================
+// 14. MODULAR PAGE INITIALIZERS & BINDINGS
+// ==========================================================================
 
-  // Top Bar switcher triggers
-  const roleButtons = document.querySelectorAll('#role-switcher .switcher-btn');
-  roleButtons.forEach(btn => {
-    btn.addEventListener('click', (e) => {
+function initCustomerView() {
+  // Splash Start
+  const btnSplash = document.getElementById('btn-splash-start');
+  if (btnSplash) {
+    btnSplash.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      roleButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const target = btn.getAttribute('data-target');
-      AppState.activeRole = target;
-
-      // Hide all panels
-      document.querySelectorAll('main .view-section').forEach(sect => sect.classList.remove('active'));
-      // Show chosen panel
-      document.getElementById(target).classList.add('active');
-
-      // Re-trigger visual updates for panel specific states
-      if (target === 'kitchen-view') {
-        renderKDSBoard();
-      } else if (target === 'cashier-view') {
-        renderCashierOrdersTable();
-        updateCashierMetrics();
-        renderCashierCheckoutSidebar();
-      }
+      switchMobileScreen('mobile-phone');
     });
-  });
+  }
 
-  // Client App Navigation buttons
-  document.getElementById('btn-splash-start').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    switchMobileScreen('mobile-phone');
-  });
-
+  // Stepper Back buttons
   document.querySelectorAll('.btn-to-splash').forEach(b => {
     b.addEventListener('click', () => switchMobileScreen('mobile-splash'));
   });
@@ -1794,16 +1771,18 @@ window.addEventListener('DOMContentLoaded', () => {
     b.addEventListener('click', () => switchMobileScreen('mobile-cart'));
   });
 
-  // Profile Gear button trigger
-  document.getElementById('btn-mobile-profile').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    renderCustomerProfileScreen();
-    switchMobileScreen('mobile-profile');
-  });
+  // Profile Drawer trigger
+  const btnProfile = document.getElementById('btn-mobile-profile');
+  if (btnProfile) {
+    btnProfile.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      renderCustomerProfileScreen();
+      switchMobileScreen('mobile-profile');
+    });
+  }
 
-  // Numeric Keypad clicks hooks
-  const keypadKeys = document.querySelectorAll('#phone-keypad button');
-  keypadKeys.forEach(btn => {
+  // Keypad Keys
+  document.querySelectorAll('#phone-keypad button').forEach(btn => {
     btn.addEventListener('click', () => {
       const char = btn.innerText;
       if (btn.classList.contains('delete') || btn.querySelector('i')) {
@@ -1814,151 +1793,129 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Confirm Phone
-  document.getElementById('btn-phone-submit').addEventListener('click', () => {
-    if (currentPhoneDigits.length < 10) {
-      AudioSynthesizer.playBeep();
-      showToastNotification(
-        AppState.selectedLang === 'ar'
-          ? "الرجاء إدخال رقم جوال سعودي صحيح مكون من ١٠ أرقام!"
-          : "Please enter a valid 10-digit mobile number!",
-        'new'
-      );
-      return;
-    }
-    AppState.phoneNumber = currentPhoneDigits;
+  // Keypad Confirm
+  const btnPhoneSubmit = document.getElementById('btn-phone-submit');
+  if (btnPhoneSubmit) {
+    btnPhoneSubmit.addEventListener('click', () => {
+      if (currentPhoneDigits.length < 10) {
+        AudioSynthesizer.playBeep();
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? "الرجاء إدخال رقم جوال سعودي صحيح مكون من ١٠ أرقام!"
+            : "Please enter a valid 10-digit mobile number!",
+          'new'
+        );
+        return;
+      }
+      AppState.phoneNumber = currentPhoneDigits;
 
-    // Check if customer phone number already exists in historical orders!
-    const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
-    if (pastOrder) {
-      AppState.customerName = pastOrder.name;
-      
-      // Notify them
-      showToastNotification(
-        AppState.selectedLang === 'ar'
-          ? `مرحباً بعودتك يا ${pastOrder.name}! تم فتح ملفك الشخصي بنجاح 🔥`
-          : `Welcome back, ${pastOrder.name}! Profile unlocked successfully 🔥`,
-        'ready'
-      );
-      
-      // Directly bypass to Menu catalog!
+      // Check if user exists in orders history
+      const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
+      if (pastOrder) {
+        AppState.customerName = pastOrder.name;
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? `مرحباً بعودتك يا ${pastOrder.name}! تم فتح ملفك الشخصي بنجاح 🔥`
+            : `Welcome back, ${pastOrder.name}! Profile unlocked successfully 🔥`,
+          'ready'
+        );
+        switchMobileScreen('mobile-menu');
+      } else {
+        document.getElementById('name-input').value = "";
+        switchMobileScreen('mobile-name');
+      }
+    });
+  }
+
+  // Name submit
+  const btnNameSubmit = document.getElementById('btn-name-submit');
+  if (btnNameSubmit) {
+    btnNameSubmit.addEventListener('click', () => {
+      const nameVal = document.getElementById('name-input').value.trim();
+      if (nameVal === "") {
+        AudioSynthesizer.playBeep();
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? "الرجاء إدخال اسمك الكريم لإكمال عملية تسجيل الدخول!"
+            : "Please enter your name to proceed!",
+          'new'
+        );
+        return;
+      }
+      AppState.customerName = nameVal;
       switchMobileScreen('mobile-menu');
-    } else {
-      // New signup user, request name
-      document.getElementById('name-input').value = "";
-      switchMobileScreen('mobile-name');
-    }
-  });
+    });
+  }
 
-  // Confirm Name
-  document.getElementById('btn-name-submit').addEventListener('click', () => {
-    const nameVal = document.getElementById('name-input').value.trim();
-    if (nameVal === "") {
+  // Catalog search input
+  const menuSearch = document.getElementById('menu-search');
+  if (menuSearch) {
+    menuSearch.addEventListener('input', (e) => {
+      menuSearchQuery = e.target.value;
+      renderMenuCatalog();
+    });
+  }
+
+  // Floating Cart trigger
+  const floatCart = document.getElementById('float-cart-bar');
+  if (floatCart) {
+    floatCart.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      showToastNotification(
-        AppState.selectedLang === 'ar'
-          ? "الرجاء إدخال اسمك الكريم لإكمال عملية تسجيل الدخول!"
-          : "Please enter your name to proceed!",
-        'new'
-      );
-      return;
-    }
-    AppState.customerName = nameVal;
-    switchMobileScreen('mobile-menu');
-  });
+      switchMobileScreen('mobile-cart');
+    });
+  }
 
-  // Search filter
-  document.getElementById('menu-search').addEventListener('input', (e) => {
-    menuSearchQuery = e.target.value;
-    renderMenuCatalog();
-  });
+  // Cart Checkout type
+  const btnCartCheckout = document.getElementById('btn-cart-checkout');
+  if (btnCartCheckout) {
+    btnCartCheckout.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (AppState.cart.length === 0) return;
+      switchMobileScreen('mobile-order-type');
+    });
+  }
 
-  // View Cart trigger
-  document.getElementById('float-cart-bar').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    switchMobileScreen('mobile-cart');
-  });
-
-  // Checkout type transition
-  document.getElementById('btn-cart-checkout').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    if (AppState.cart.length === 0) return;
-    switchMobileScreen('mobile-order-type');
-  });
-
-  // Toggle order type selection cards
+  // Dine-in vs Takeaway Selection
   const dineCard = document.getElementById('card-dine-in');
   const takeCard = document.getElementById('card-takeaway');
-
-  dineCard.addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    dineCard.classList.add('active');
-    takeCard.classList.remove('active');
-    AppState.deliveryType = 'dine-in';
-  });
-
-  takeCard.addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    takeCard.classList.add('active');
-    dineCard.classList.remove('active');
-    AppState.deliveryType = 'takeaway';
-  });
-
-  // Send Order to Kitchen!
-  document.getElementById('btn-place-order').addEventListener('click', () => {
-    triggerPlaceOrder();
-  });
-
-  // Track new order flow reset
-  document.getElementById('btn-track-new-order').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    // clear active settings
-    AppState.activeOrderId = null;
-    currentPhoneDigits = "";
-    document.getElementById('name-input').value = "";
-    renderPhoneDisplay();
-    switchMobileScreen('mobile-splash');
-  });
-
-  // Cashier sidebar pay confirm
-  document.getElementById('btn-cashier-pay').addEventListener('click', () => {
-    processCashierPayment();
-  });
-
-  // Cashier sidebar bill print triggering
-  document.getElementById('btn-cashier-print').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    triggerPrintThermalBill();
-  });
-
-  // Pay methods selection inside cashier sidebar
-  document.querySelectorAll('.pay-methods-grid .pay-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  if (dineCard && takeCard) {
+    dineCard.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      selectedPaymentMethod = btn.getAttribute('data-method');
-      document.querySelectorAll('.pay-methods-grid .pay-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      dineCard.classList.add('active');
+      takeCard.classList.remove('active');
+      AppState.deliveryType = 'dine-in';
     });
-  });
 
-  // Cashier table search filter
-  document.getElementById('cashier-order-search').addEventListener('input', (e) => {
-    cashierSearchQuery = e.target.value;
-    renderCashierOrdersTable();
-  });
+    takeCard.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      takeCard.classList.add('active');
+      dineCard.classList.remove('active');
+      AppState.deliveryType = 'takeaway';
+    });
+  }
 
-  // Close thermal bill modal click
-  document.getElementById('btn-close-receipt').addEventListener('click', () => {
-    AudioSynthesizer.playBeep();
-    document.getElementById('receipt-modal-overlay').classList.remove('active');
-  });
+  // Place Order button
+  const btnPlaceOrder = document.getElementById('btn-place-order');
+  if (btnPlaceOrder) {
+    btnPlaceOrder.addEventListener('click', () => {
+      triggerPlaceOrder();
+    });
+  }
 
-  // Auto Magic Fake order generator trigger
-  document.getElementById('btn-auto-order').addEventListener('click', () => {
-    triggerAutoMockOrder();
-  });
+  // New Order flow reset
+  const btnNewOrder = document.getElementById('btn-track-new-order');
+  if (btnNewOrder) {
+    btnNewOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      AppState.activeOrderId = null;
+      currentPhoneDigits = "";
+      document.getElementById('name-input').value = "";
+      renderPhoneDisplay();
+      switchMobileScreen('mobile-splash');
+    });
+  }
 
-  // Customer app language toggles
+  // Language Toggles
   document.querySelectorAll('.lang-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
@@ -1969,18 +1926,134 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Render initial items grid in Welcome splash
+  // Render initial grid setup
   renderTableGrid();
-  updateLanguageUI(); // initializes elements lists and translation structures
+  updateLanguageUI();
+}
 
-  // Subscribe to Supabase Realtime updates
-  if (supabaseClient) {
-    supabaseClient
-      .channel('public:orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        console.log('Database changes detected via Supabase Realtime!', payload);
-        loadFromLocalStorage(); // Trigger sync
-      })
-      .subscribe();
+function initKitchenView() {
+  renderKDSBoard();
+  
+  // Kitchen Quick Simulator button
+  const btnAuto = document.getElementById('btn-auto-order');
+  if (btnAuto) {
+    btnAuto.addEventListener('click', () => {
+      triggerAutoMockOrder();
+    });
   }
+}
+
+function initCashierView() {
+  renderCashierOrdersTable();
+  updateCashierMetrics();
+
+  // Search orders table
+  const searchInput = document.getElementById('cashier-order-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      cashierSearchQuery = e.target.value;
+      renderCashierOrdersTable();
+    });
+  }
+
+  // Confirm paid Sidebar click
+  const btnPay = document.getElementById('btn-cashier-pay');
+  if (btnPay) {
+    btnPay.addEventListener('click', () => {
+      processCashierPayment();
+    });
+  }
+
+  // Print Sidebar click
+  const btnPrint = document.getElementById('btn-cashier-print');
+  if (btnPrint) {
+    btnPrint.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      triggerPrintThermalBill();
+    });
+  }
+
+  // Sidebar Cashier Payment methods
+  document.querySelectorAll('.pay-methods-grid .pay-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      selectedPaymentMethod = btn.getAttribute('data-method');
+      document.querySelectorAll('.pay-methods-grid .pay-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Close thermal bill modal
+  const btnCloseReceipt = document.getElementById('btn-close-receipt');
+  if (btnCloseReceipt) {
+    btnCloseReceipt.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('receipt-modal-overlay').classList.remove('active');
+    });
+  }
+
+  // Cashier Quick Simulator button
+  const btnAuto = document.getElementById('btn-auto-order');
+  if (btnAuto) {
+    btnAuto.addEventListener('click', () => {
+      triggerAutoMockOrder();
+    });
+  }
+}
+
+// ==========================================================================
+// 15. MAIN DOM CONTENT LOADED DISPATCHER
+// ==========================================================================
+window.addEventListener('DOMContentLoaded', () => {
+  // Load local data and mock pre-populations
+  loadFromLocalStorage().then(() => {
+    prePopulateHistoricalOrders();
+
+    // Select initialization branch based on active body ID
+    const bodyId = document.body.id;
+    if (bodyId === 'customer-body') {
+      AppState.activeRole = 'customer-view';
+      initCustomerView();
+    } else if (bodyId === 'kitchen-body') {
+      AppState.activeRole = 'kitchen-view';
+      initKitchenView();
+    } else if (bodyId === 'cashier-body') {
+      AppState.activeRole = 'cashier-view';
+      initCashierView();
+    } else {
+      // Fallback fallback
+      initCustomerView();
+      initKitchenView();
+      initCashierView();
+    }
+
+    // Subscribe to Supabase Realtime cloud updates
+    if (supabaseClient) {
+      supabaseClient
+        .channel('public:orders')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+          console.log('Database changes detected via Supabase Realtime!', payload);
+          loadFromLocalStorage().then(() => {
+            // Re-render corresponding panels
+            if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
+            if (AppState.activeRole === 'cashier-view') {
+              renderCashierOrdersTable();
+              updateCashierMetrics();
+              if (selectedOrderForCheckout) {
+                const refreshedOrder = AppState.orders.find(o => o.id === selectedOrderForCheckout.id);
+                if (refreshedOrder) {
+                  selectedOrderForCheckout = refreshedOrder;
+                  renderCashierCheckoutSidebar();
+                }
+              }
+            }
+            if (AppState.activeRole === 'customer-view' && AppState.activeOrderId) {
+              const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+              if (trackingOrder) updateLiveTrackingUI(trackingOrder);
+            }
+          });
+        })
+        .subscribe();
+    }
+  });
 });
