@@ -354,6 +354,10 @@
           <i class="fa-solid fa-burger"></i>
           <span>مبيعات الوجبات</span>
         </div>
+        <div class="admin-menu-item" data-target="panel-qrcodes">
+          <i class="fa-solid fa-qrcode"></i>
+          <span>رموز QR المخصصة</span>
+        </div>
         <div class="admin-menu-item" data-target="panel-settings">
           <i class="fa-solid fa-sliders"></i>
           <span>إعدادات النظام</span>
@@ -545,6 +549,28 @@
                   <!-- Rendered dynamically -->
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================================
+           TAB PANEL 5: QR CODES GENERATOR
+           ========================================================================== -->
+      <div class="admin-tab-panel" id="panel-qrcodes">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3><i class="fa-solid fa-qrcode" style="color: var(--primary-yellow);"></i> مولد رموز QR الذكي للطاولات والطلبات السفرية</h3>
+            <span style="font-size: 0.75rem; color: var(--text-light-muted);">تتغير الروابط تلقائياً بناءً على رابط سيرفر تشغيل المطعم الحالي</span>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <p style="font-size: 0.85rem; color: var(--text-light-muted); line-height: 1.6;">
+              اطبع هذه الرموز المخصصة وثبتها على الطاولات أو في منطقة الاستلام الخارجي. عند قيام العميل بمسح الرمز بهاتفه، سيتم توجيهه لقائمة الطعام فورياً مع تحديد رقم طاولته أو تثبيت الطلب كسفري تلقائياً لتجنب الأخطاء.
+            </p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px;" id="admin-qr-codes-grid">
+              <!-- Dynamically populated QRs -->
             </div>
           </div>
         </div>

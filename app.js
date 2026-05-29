@@ -226,7 +226,9 @@ const TRANSLATIONS = {
     newOrderBtn: "طلب وجبة أخرى جديدة",
     sar: "ر.س",
     lblQrTableStatus: "تم مسح الرمز للطاولة:",
-    qrTableDisplayPrefix: "طاولة "
+    qrTableDisplayPrefix: "طاولة ",
+    lblQrTakeawayStatus: "تم مسح الرمز للسفري:",
+    qrTakeawayDisplay: "طلب سفري (تيك أواي)"
   },
   en: {
     splashTitle: "Hi Proust",
@@ -273,7 +275,9 @@ const TRANSLATIONS = {
     newOrderBtn: "Place Another Order",
     sar: "SAR",
     lblQrTableStatus: "Table QR Code Scanned:",
-    qrTableDisplayPrefix: "Table "
+    qrTableDisplayPrefix: "Table ",
+    lblQrTakeawayStatus: "Takeaway QR Scanned:",
+    qrTakeawayDisplay: "Takeaway / Quick Pickup"
   }
 };
 
@@ -304,6 +308,9 @@ const AppState = {
 // LocalStorage & Supabase Helper
 function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_ORDERS', JSON.stringify(AppState.orders));
+  localStorage.setItem('HIPROUST_ACTIVE_ORDER_ID', AppState.activeOrderId || '');
+  localStorage.setItem('HIPROUST_CUSTOMER_NAME', AppState.customerName || '');
+  localStorage.setItem('HIPROUST_PHONE_NUMBER', AppState.phoneNumber || '');
 }
 
 async function loadFromLocalStorage() {
@@ -315,6 +322,10 @@ async function loadFromLocalStorage() {
       AppState.orders = [];
     }
   }
+
+  AppState.activeOrderId = localStorage.getItem('HIPROUST_ACTIVE_ORDER_ID') || null;
+  AppState.customerName = localStorage.getItem('HIPROUST_CUSTOMER_NAME') || '';
+  AppState.phoneNumber = localStorage.getItem('HIPROUST_PHONE_NUMBER') || '';
 
   // Cloud Database Integration (Supabase)
   if (supabaseClient) {
@@ -520,6 +531,14 @@ function updateLanguageUI() {
     lockedDisplay.innerText = L.qrTableDisplayPrefix + AppState.selectedTable;
   }
 
+  // Update QR takeaway locked banner translations if active
+  const lockedTakeawayStatus = document.getElementById('lbl-qr-takeaway-status');
+  const lockedTakeawayDisplay = document.getElementById('qr-takeaway-display');
+  if (lockedTakeawayStatus && lockedTakeawayDisplay) {
+    lockedTakeawayStatus.innerText = L.lblQrTakeawayStatus;
+    lockedTakeawayDisplay.innerText = L.qrTakeawayDisplay;
+  }
+
   // Render categories and menu catalog with translated keys
   renderMenuCategories();
   renderMenuCatalog();
@@ -579,35 +598,74 @@ function renderTableGrid() {
   }
 }
 
-// URL QR table code check locking
+// URL QR table and takeaway code check locking
 function checkTableQRParam() {
   const urlParams = new URLSearchParams(window.location.search);
   const tableVal = urlParams.get('table') || urlParams.get('t');
-  
+  const typeVal = urlParams.get('type') || urlParams.get('delivery');
+
   const selectionWrapper = document.getElementById('table-selection-wrapper');
   const lockedWrapper = document.getElementById('qr-table-locked-wrapper');
   const lockedDisplay = document.getElementById('qr-table-display');
   const lockedStatusLbl = document.getElementById('lbl-qr-table-status');
-  
+
+  const takeawayWrapper = document.getElementById('qr-takeaway-locked-wrapper');
+  const takeawayDisplay = document.getElementById('qr-takeaway-display');
+  const takeawayStatusLbl = document.getElementById('lbl-qr-takeaway-status');
+
+  // 1. Check for Takeaway QR code
+  if (typeVal === 'takeaway' || tableVal === 'takeaway') {
+    AppState.deliveryType = 'takeaway';
+    AppState.selectedTable = 0; // 0 represents takeaway order placeholder
+
+    if (selectionWrapper) selectionWrapper.classList.add('hidden');
+    if (lockedWrapper) lockedWrapper.classList.add('hidden');
+    if (takeawayWrapper) takeawayWrapper.classList.remove('hidden');
+
+    const L = TRANSLATIONS[AppState.selectedLang];
+    if (takeawayDisplay) takeawayDisplay.innerText = L.qrTakeawayDisplay;
+    if (takeawayStatusLbl) takeawayStatusLbl.innerText = L.lblQrTakeawayStatus;
+
+    const dineCard = document.getElementById('card-dine-in');
+    const takeCard = document.getElementById('card-takeaway');
+    if (dineCard && takeCard) {
+      dineCard.classList.remove('active');
+      takeCard.classList.add('active');
+    }
+    return true;
+  }
+
+  // 2. Check for Table QR code
   if (tableVal) {
     const tableNum = parseInt(tableVal);
     if (!isNaN(tableNum) && tableNum > 0) {
       AppState.selectedTable = tableNum;
-      
+      AppState.deliveryType = 'dine-in';
+
       if (selectionWrapper) selectionWrapper.classList.add('hidden');
+      if (takeawayWrapper) takeawayWrapper.classList.add('hidden');
       if (lockedWrapper) lockedWrapper.classList.remove('hidden');
-      
+
       const L = TRANSLATIONS[AppState.selectedLang];
       if (lockedDisplay) lockedDisplay.innerText = L.qrTableDisplayPrefix + tableNum;
       if (lockedStatusLbl) lockedStatusLbl.innerText = L.lblQrTableStatus;
-      
+
+      const dineCard = document.getElementById('card-dine-in');
+      const takeCard = document.getElementById('card-takeaway');
+      if (dineCard && takeCard) {
+        dineCard.classList.add('active');
+        takeCard.classList.remove('active');
+      }
+
       updateTableTags();
       return true;
     }
   }
-  
+
+  // 3. Standard fallback (No QR scanned)
   if (selectionWrapper) selectionWrapper.classList.remove('hidden');
   if (lockedWrapper) lockedWrapper.classList.add('hidden');
+  if (takeawayWrapper) takeawayWrapper.classList.add('hidden');
   return false;
 }
 
@@ -1957,6 +2015,7 @@ function initCustomerView() {
       document.getElementById('name-input').value = "";
       renderPhoneDisplay();
       checkTableQRParam();
+      saveToLocalStorage();
       switchMobileScreen('mobile-splash');
     });
   }
@@ -1976,6 +2035,22 @@ function initCustomerView() {
   renderTableGrid();
   checkTableQRParam();
   updateLanguageUI();
+
+  // Restore tracking session if there is a live active order being tracked
+  if (AppState.activeOrderId) {
+    const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+    if (activeOrder && activeOrder.status !== 'completed') {
+      updateLiveTrackingUI(activeOrder);
+      switchMobileScreen('mobile-tracking');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? "تم استعادة جلسة تتبع طلبك النشط!" : "Active tracking session restored!",
+        'ready'
+      );
+    } else {
+      AppState.activeOrderId = null;
+      saveToLocalStorage();
+    }
+  }
 }
 
 function initKitchenView() {
@@ -2053,6 +2128,7 @@ function initCashierView() {
 // ==========================================================================
 function initAdminView() {
   renderAdminDashboard();
+  renderAdminQRCodes();
 
   // Sidebar Tab Switches
   document.querySelectorAll('.admin-menu-item').forEach(item => {
@@ -2119,219 +2195,68 @@ function initAdminView() {
   }
 }
 
-function renderAdminDashboard() {
-  const L = TRANSLATIONS[AppState.selectedLang];
+function renderAdminQRCodes() {
+  const qrGrid = document.getElementById('admin-qr-codes-grid');
+  if (!qrGrid) return;
+  qrGrid.innerHTML = '';
 
-  // Calculate Metrics
-  let salesSum = 0;
-  let ordersCount = 0;
-  let activeOrdersCount = 0;
-  let paidOrdersCount = 0;
+  // Get current base URL of index.html
+  const baseUri = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
 
-  AppState.orders.forEach(o => {
-    ordersCount++;
-    if (o.paymentStatus === 'paid') {
-      salesSum += o.total;
-      paidOrdersCount++;
-    }
-    if (o.status !== 'completed') {
-      activeOrdersCount++;
-    }
-  });
+  // 1. Generate Takeaway QR Code Card
+  const takeawayUrl = `${baseUri}?type=takeaway`;
+  const takeawayQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(takeawayUrl)}`;
 
-  const avgBill = paidOrdersCount > 0 ? (salesSum / paidOrdersCount) : 0;
+  const takeawayCard = document.createElement('div');
+  takeawayCard.className = 'admin-metric-card';
+  takeawayCard.style.flexDirection = 'column';
+  takeawayCard.style.gap = '14px';
+  takeawayCard.style.textAlign = 'center';
+  takeawayCard.style.padding = '16px';
+  takeawayCard.style.backgroundColor = '#18181C';
+  takeawayCard.style.border = '2px solid #0284C7'; // Blue border for takeaway
 
-  // Render KPI values
-  const salesLbl = document.getElementById('admin-sales-total');
-  const countLbl = document.getElementById('admin-orders-count');
-  const avgLbl = document.getElementById('admin-avg-bill');
-  const activeLbl = document.getElementById('admin-active-orders-count');
+  takeawayCard.innerHTML = `
+    <div style="font-weight: 800; font-size: 0.95rem; color: #0284C7;"><i class="fa-solid fa-bag-shopping"></i> طلب سفري / Takeaway</div>
+    <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block;">
+      <img src="${takeawayQrApi}" alt="Takeaway QR" style="width: 130px; height: 130px; display: block;">
+    </div>
+    <div style="font-size: 0.65rem; color: var(--text-light-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
+      ${takeawayUrl}
+    </div>
+    <a href="${takeawayQrApi}" target="_blank" download="takeaway_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block; background-color: rgba(2, 132, 199, 0.15); border-color: #0284C7; color: #0284C7;">
+      <i class="fa-solid fa-print"></i> طباعة / تحميل
+    </a>
+  `;
+  qrGrid.appendChild(takeawayCard);
 
-  if (salesLbl) salesLbl.innerText = salesSum.toFixed(2) + " " + L.sar;
-  if (countLbl) countLbl.innerText = ordersCount;
-  if (avgLbl) avgLbl.innerText = avgBill.toFixed(2) + " " + L.sar;
-  if (activeLbl) activeLbl.innerText = activeOrdersCount;
+  // 2. Generate Tables 1 to 12 QR Cards
+  for (let i = 1; i <= 12; i++) {
+    const tableUrl = `${baseUri}?table=${i}`;
+    const tableQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(tableUrl)}`;
 
-  // 1. Render Recent Orders Rows (Overview Tab)
-  const recentRows = document.getElementById('admin-recent-orders-rows');
-  if (recentRows) {
-    recentRows.innerHTML = '';
-    const latestOrders = AppState.orders.slice(-5).reverse();
-    if (latestOrders.length === 0) {
-      recentRows.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-light-muted); padding: 20px;">${AppState.selectedLang === 'ar' ? 'لا توجد طلبات اليوم بعد' : 'No orders recorded today'}</td></tr>`;
-    } else {
-      latestOrders.forEach(o => {
-        const typeLabel = o.type === 'dine-in' 
-          ? (AppState.selectedLang === 'ar' ? `محلي ط<sup>${o.table}</sup>` : `Dine-in T<sup>${o.table}</sup>`)
-          : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
-          
-        let statusTag = `<span class="badge-status ${o.status}">${o.status === 'new' ? (AppState.selectedLang === 'ar' ? 'جديد' : 'New') : o.status === 'preparing' ? (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'In Prep') : o.status === 'ready' ? (AppState.selectedLang === 'ar' ? 'جاهز' : 'Ready') : (AppState.selectedLang === 'ar' ? 'مكتمل' : 'Done')}</span>`;
-        let payTag = `<span class="badge-pay ${o.paymentStatus}">${o.paymentStatus === 'paid' ? (AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid') : (AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid')}</span>`;
-        
-        const itemsSummary = o.items.map(itm => `${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}`).join(' ، ');
+    const card = document.createElement('div');
+    card.className = 'admin-metric-card';
+    card.style.flexDirection = 'column';
+    card.style.gap = '14px';
+    card.style.textAlign = 'center';
+    card.style.padding = '16px';
+    card.style.backgroundColor = '#18181C';
+    card.style.border = '1px solid var(--dark-border)';
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="font-weight: 800; color: var(--primary-red);">${o.id}</td>
-          <td><div style="font-weight:700;">${o.name}</div></td>
-          <td style="font-weight: 600;">${typeLabel}</td>
-          <td style="font-size:0.75rem; color:var(--text-light-muted); max-width:240px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${itemsSummary}">${itemsSummary}</td>
-          <td>${statusTag}</td>
-          <td>${payTag}</td>
-        `;
-        recentRows.appendChild(tr);
-      });
-    }
-  }
-
-  // 2. Render All Orders Rows (Orders Tab)
-  const allRows = document.getElementById('admin-all-orders-rows');
-  if (allRows) {
-    allRows.innerHTML = '';
-    const sortedOrders = AppState.orders.slice().reverse();
-    if (sortedOrders.length === 0) {
-      allRows.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-light-muted); padding: 20px;">${AppState.selectedLang === 'ar' ? 'لا توجد طلبات نشطة اليوم' : 'No active orders today'}</td></tr>`;
-    } else {
-      sortedOrders.forEach(o => {
-        const typeLabel = o.type === 'dine-in' 
-          ? (AppState.selectedLang === 'ar' ? `محلي ط<sup>${o.table}</sup>` : `Dine-in T<sup>${o.table}</sup>`)
-          : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
-          
-        let statusTag = `<span class="badge-status ${o.status}">${o.status === 'new' ? (AppState.selectedLang === 'ar' ? 'جديد' : 'New') : o.status === 'preparing' ? (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'In Prep') : o.status === 'ready' ? (AppState.selectedLang === 'ar' ? 'جاهز' : 'Ready') : (AppState.selectedLang === 'ar' ? 'مكتمل' : 'Done')}</span>`;
-        let payTag = `<span class="badge-pay ${o.paymentStatus}">${o.paymentStatus === 'paid' ? (AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid') : (AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid')}</span>`;
-        
-        const itemsSummary = o.items.map(itm => `${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}`).join('<br>');
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="font-weight: 800; color: var(--primary-red);">${o.id}</td>
-          <td style="font-weight: 700;">${o.name}</td>
-          <td style="font-size:0.75rem; color:var(--text-light-muted);">${o.phone}</td>
-          <td style="font-weight: 600;">${typeLabel}</td>
-          <td style="font-size:0.75rem; line-height:1.3;">${itemsSummary}</td>
-          <td style="font-size:0.75rem; color:var(--primary-yellow);">${o.notes || '-'}</td>
-          <td style="font-weight: 800; color:var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</td>
-          <td>${statusTag}</td>
-          <td>${payTag}</td>
-        `;
-        allRows.appendChild(tr);
-      });
-    }
-  }
-
-  // 3. Render Best Selling Products Chart (Overview Tab & Products Tab)
-  const bestSellersContainer = document.getElementById('admin-best-sellers-container');
-  if (bestSellersContainer) {
-    bestSellersContainer.innerHTML = '';
-    
-    const salesMap = {};
-    AppState.orders.forEach(o => {
-      o.items.forEach(itm => {
-        salesMap[itm.id] = (salesMap[itm.id] || 0) + itm.qty;
-      });
-    });
-
-    const menuStats = MENU.map(m => {
-      return {
-        id: m.id,
-        name: AppState.selectedLang === 'ar' ? m.nameAr : m.nameEn,
-        qty: salesMap[m.id] || 0
-      };
-    }).sort((a, b) => b.qty - a.qty);
-
-    const maxSold = menuStats[0] ? menuStats[0].qty : 1;
-
-    menuStats.forEach(itm => {
-      if (itm.qty === 0) return;
-
-      const pct = maxSold > 0 ? (itm.qty / maxSold) * 100 : 0;
-      
-      const div = document.createElement('div');
-      div.className = 'product-stat-row';
-      div.innerHTML = `
-        <div class="product-stat-info">
-          <span>${itm.name}</span>
-          <span style="color:var(--primary-yellow);">${itm.qty} ${AppState.selectedLang === 'ar' ? 'وجبة' : 'sold'}</span>
-        </div>
-        <div class="product-stat-bar-container">
-          <div class="product-stat-bar" style="width: ${pct}%;"></div>
-        </div>
-      `;
-      bestSellersContainer.appendChild(div);
-    });
-
-    if (bestSellersContainer.children.length === 0) {
-      bestSellersContainer.innerHTML = `<div style="text-align:center; padding:30px 10px; color:var(--text-light-muted);">${AppState.selectedLang === 'ar' ? 'لا تتوفر إحصائيات بيع اليوم' : 'No sales charts recorded yet'}</div>`;
-    }
-  }
-
-  // 4. Render Product Detailed Sales distribution by Category (Products Tab)
-  const categoriesVolumeContainer = document.getElementById('admin-categories-volume-container');
-  if (categoriesVolumeContainer) {
-    categoriesVolumeContainer.innerHTML = '';
-    
-    const catMap = {};
-    AppState.orders.forEach(o => {
-      o.items.forEach(itm => {
-        const itemMenuDef = MENU.find(m => m.id === itm.id);
-        if (itemMenuDef) {
-          catMap[itemMenuDef.cat] = (catMap[itemMenuDef.cat] || 0) + itm.qty;
-        }
-      });
-    });
-
-    CATEGORIES.forEach(cat => {
-      if (cat.id === 'all') return;
-      const count = catMap[cat.id] || 0;
-      const catName = AppState.selectedLang === 'ar' ? cat.nameAr : cat.nameEn;
-      
-      const div = document.createElement('div');
-      div.className = 'product-stat-row';
-      div.innerHTML = `
-        <div class="product-stat-info">
-          <span>${catName}</span>
-          <span style="color:var(--primary-yellow);">${count} ${AppState.selectedLang === 'ar' ? 'عنصر' : 'pcs'}</span>
-        </div>
-        <div class="product-stat-bar-container" style="background-color: var(--dark-border);">
-          <div class="product-stat-bar" style="width: ${Math.min(100, count * 10)}%; background: var(--primary-yellow);"></div>
-        </div>
-      `;
-      categoriesVolumeContainer.appendChild(div);
-    });
-  }
-
-  // 5. Render Tables Activity rows
-  const tablesActivityRows = document.getElementById('admin-tables-activity-rows');
-  if (tablesActivityRows) {
-    tablesActivityRows.innerHTML = '';
-    
-    const tablesMap = {};
-    for (let i = 1; i <= 12; i++) tablesMap[i] = { count: 0, revenue: 0 };
-
-    AppState.orders.forEach(o => {
-      if (o.type === 'dine-in' && o.table >= 1 && o.table <= 12) {
-        tablesMap[o.table].count++;
-        if (o.paymentStatus === 'paid') {
-          tablesMap[o.table].revenue += o.total;
-        }
-      }
-    });
-
-    for (let i = 1; i <= 12; i++) {
-      if (tablesMap[i].count === 0) continue;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="font-weight:800; color:var(--primary-yellow);">${AppState.selectedLang === 'ar' ? 'طاولة ' + i : 'Table ' + i}</td>
-        <td style="font-weight:700;">${tablesMap[i].count}</td>
-        <td style="font-weight:800; color:var(--color-ready);">${tablesMap[i].revenue.toFixed(2)} ${L.sar}</td>
-      `;
-      tablesActivityRows.appendChild(tr);
-    }
-
-    if (tablesActivityRows.children.length === 0) {
-      tablesActivityRows.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-light-muted); padding:20px;">${AppState.selectedLang === 'ar' ? 'لا يوجد نشاط طاولات محلي حالياً' : 'No active tables local orders today'}</td></tr>`;
-    }
+    card.innerHTML = `
+      <div style="font-weight: 800; font-size: 0.95rem; color: var(--primary-yellow);"><i class="fa-solid fa-chair"></i> طاولة ${i} / Table ${i}</div>
+      <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block;">
+        <img src="${tableQrApi}" alt="Table ${i} QR" style="width: 130px; height: 130px; display: block;">
+      </div>
+      <div style="font-size: 0.65rem; color: var(--text-light-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
+        ${tableUrl}
+      </div>
+      <a href="${tableQrApi}" target="_blank" download="table_${i}_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block;">
+        <i class="fa-solid fa-print"></i> طباعة / تحميل
+      </a>
+    `;
+    qrGrid.appendChild(card);
   }
 }
 
