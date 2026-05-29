@@ -48,7 +48,8 @@ WITH CHECK (true);
 -- 4. DATABASE MIGRATION FOR MULTI-USER AUDIT TRAIL
 -- Run this if your orders table is already created:
 -- ==========================================================================
--- ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS audit_log JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS audit_log JSONB DEFAULT '[]'::jsonb;
+NOTIFY pgrst, 'reload schema';
 
 -- ==========================================================================
 -- 5. CREATE CATEGORIES & PRODUCTS TABLES

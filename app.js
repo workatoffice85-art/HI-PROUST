@@ -2863,7 +2863,16 @@ function initAdminView() {
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('categories').upsert(categoryPayload);
-          if (error) throw error;
+          if (error) {
+            console.error("Supabase category save error:", error);
+            showToastNotification(
+              AppState.selectedLang === 'ar' 
+                ? `فشل الحفظ في قاعدة البيانات: ${error.message}` 
+                : `Database save failed: ${error.message}`, 
+              'new'
+            );
+            return;
+          }
         } catch (err) {
           console.error("Error saving category:", err);
         }
@@ -3031,7 +3040,16 @@ function initAdminView() {
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('products').upsert(productPayload);
-          if (error) throw error;
+          if (error) {
+            console.error("Supabase product save error:", error);
+            showToastNotification(
+              AppState.selectedLang === 'ar' 
+                ? `فشل الحفظ في قاعدة البيانات: ${error.message}` 
+                : `Database save failed: ${error.message}`, 
+              'new'
+            );
+            return;
+          }
         } catch (err) {
           console.error("Error saving product:", err);
         }
