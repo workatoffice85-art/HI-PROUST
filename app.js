@@ -398,7 +398,7 @@ async function loadFromLocalStorage() {
         .select('*')
         .order('created_at', { ascending: true });
         
-      if (data && data.length > 0) {
+      if (data) {
         AppState.orders = data.map(o => ({
           id: o.id,
           table: o.table_number,
@@ -2739,6 +2739,7 @@ function initAdminView() {
   initStaffLoginPortal('admin');
   renderAdminDashboard();
   renderAdminQRCodes();
+  renderAdminMenuManage();
 
   // Sidebar Tab Switches
   document.querySelectorAll('.admin-menu-item').forEach(item => {
