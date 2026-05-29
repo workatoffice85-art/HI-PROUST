@@ -2200,8 +2200,26 @@ function renderAdminQRCodes() {
   if (!qrGrid) return;
   qrGrid.innerHTML = '';
 
-  // Get current base URL of index.html
-  const baseUri = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
+  // Get current base URL of index.html (foolproof parser for clean URLs and file schemes)
+  let href = window.location.href.split('?')[0].split('#')[0];
+  if (href.endsWith('/')) {
+    href = href.slice(0, -1);
+  }
+
+  let baseUri = href;
+  let lastSlashIdx = href.lastIndexOf('/');
+  if (lastSlashIdx !== -1) {
+    let lastSegment = href.substring(lastSlashIdx + 1).toLowerCase();
+    if (lastSegment === 'admin' || lastSegment === 'admin.html' || 
+        lastSegment === 'kitchen' || lastSegment === 'kitchen.html' || 
+        lastSegment === 'cashier' || lastSegment === 'cashier.html') {
+      baseUri = href.substring(0, lastSlashIdx) + '/index.html';
+    } else if (lastSegment !== 'index.html') {
+      baseUri = href + '/index.html';
+    }
+  } else {
+    baseUri = href + '/index.html';
+  }
 
   // 1. Generate Takeaway QR Code Card
   const takeawayUrl = `${baseUri}?type=takeaway`;
