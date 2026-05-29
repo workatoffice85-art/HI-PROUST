@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم والإدارة | هاي بروست - الإدارة العامة للمطعم</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Premium Isolated Styles for the Restaurant Admin Dashboard */
+    #admin-body {
+      background-color: var(--dark-bg);
+      color: var(--text-light);
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar Styling */
+    .admin-sidebar {
+      width: 280px;
+      background: linear-gradient(180deg, #111115 0%, #070709 100%);
+      border-left: 2px solid var(--dark-border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 0;
+      z-index: 10;
+    }
+
+    .admin-sidebar-brand {
+      padding: 0 20px 20px 20px;
+      border-bottom: 1px solid var(--dark-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .admin-sidebar-menu {
+      flex: 1;
+      padding: 24px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .admin-menu-item {
+      padding: 12px 16px;
+      border-radius: 12px;
+      color: var(--text-light-muted);
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all var(--transition-fast);
+      border: 1px solid transparent;
+    }
+
+    .admin-menu-item:hover {
+      color: #fff;
+      background-color: rgba(255,255,255,0.03);
+    }
+
+    .admin-menu-item.active {
+      background: linear-gradient(135deg, var(--primary-red) 0%, #A51D1D 100%);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(198, 40, 40, 0.3);
+      border-color: rgba(255,255,255,0.05);
+    }
+
+    .admin-menu-item i {
+      font-size: 1.1rem;
+      width: 24px;
+      text-align: center;
+    }
+
+    .admin-sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--dark-border);
+    }
+
+    /* Main Dashboard Layout */
+    .admin-main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .admin-header {
+      background-color: #111115;
+      padding: 16px 28px;
+      border-bottom: 2px solid var(--primary-yellow);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .admin-title-wrap h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--primary-yellow);
+    }
+
+    .admin-title-wrap p {
+      font-size: 0.8rem;
+      color: var(--text-light-muted);
+      margin-top: 2px;
+    }
+
+    .admin-content-area {
+      flex: 1;
+      padding: 28px;
+      overflow-y: auto;
+      background-color: var(--dark-bg);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* Tabs content templates */
+    .admin-tab-panel {
+      display: none;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .admin-tab-panel.active {
+      display: flex;
+    }
+
+    /* Metrics Cards */
+    .admin-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .admin-metric-card {
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all var(--transition-fast);
+    }
+
+    .admin-metric-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary-yellow);
+      box-shadow: 0 8px 20px rgba(255, 193, 7, 0.05);
+    }
+
+    .admin-metric-info h4 {
+      font-size: 0.85rem;
+      color: var(--text-light-muted);
+      font-weight: 800;
+    }
+
+    .admin-metric-info .val {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #fff;
+      margin-top: 6px;
+    }
+
+    .admin-metric-info .trend {
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .admin-metric-info .trend.up {
+      color: var(--color-ready);
+    }
+
+    .admin-metric-info .trend.neutral {
+      color: var(--text-light-muted);
+    }
+
+    .admin-metric-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.03);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--primary-yellow);
+      border: 1px solid rgba(255, 193, 7, 0.1);
+    }
+
+    /* Grid layout for Dashboard widgets */
+    .admin-widgets-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 28px;
+    }
+
+    .admin-card {
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .admin-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px dashed var(--dark-border);
+      padding-bottom: 14px;
+    }
+
+    .admin-card-header h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Product sales statistics widget */
+    .product-stat-row {
+      margin-bottom: 16px;
+    }
+
+    .product-stat-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .product-stat-bar-container {
+      background-color: var(--dark-border);
+      height: 10px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .product-stat-bar {
+      background: linear-gradient(90deg, var(--primary-yellow) 0%, var(--primary-red) 100%);
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.6s ease;
+    }
+
+    /* Table styles customized for dark dashboard */
+    .admin-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+    }
+
+    .admin-table th {
+      color: var(--text-light-muted);
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--dark-border);
+    }
+
+    .admin-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--dark-border);
+      font-size: 0.85rem;
+      color: #fff;
+    }
+
+    .admin-table tbody tr:hover {
+      background-color: rgba(255,255,255,0.01);
+    }
+
+    /* Order details modal inside admin overlay */
+    .admin-orders-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    /* Badges */
+    .badge-status {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      display: inline-block;
+    }
+
+    .badge-status.new { background-color: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-status.preparing { background-color: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-status.ready { background-color: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-status.completed { background-color: rgba(59, 130, 246, 0.15); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    .badge-pay {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 800;
+    }
+    .badge-pay.paid { background-color: rgba(16, 185, 129, 0.15); color: #10B981; }
+    .badge-pay.unpaid { background-color: rgba(239, 68, 68, 0.15); color: #EF4444; }
+  </style>
+</head>
+<body id="admin-body" class="rtl">
+
+  <!-- ==========================================================================
+       SIDEBAR NAVIGATION
+       ========================================================================== -->
+  <aside class="admin-sidebar">
+    <div>
+      <div class="admin-sidebar-brand">
+        <svg class="brand-logo-svg" viewBox="0 0 100 100" style="width: 44px; height: 44px;">
+          <circle cx="50" cy="50" r="48" fill="#FFC107" stroke="#C62828" stroke-width="4"/>
+          <circle cx="50" cy="46" r="22" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
+          <path d="M 44 46 L 56 46 L 50 58 Z" fill="#FF9800" stroke="#333" stroke-width="2"/>
+          <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
+          <path d="M 28 64 C 28 54, 40 54, 50 58 C 60 54, 72 54, 72 64 C 72 74, 50 78, 50 78" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-title" style="color: var(--primary-yellow); font-size: 1.1rem; font-weight: 800; display: block;">إدارة هاي بروست</span>
+          <span class="brand-subtitle" style="font-size: 0.7rem; color: var(--text-light-muted);">لوحة ملاك المطعم</span>
+        </div>
+      </div>
+
+      <nav class="admin-sidebar-menu">
+        <div class="admin-menu-item active" data-target="panel-overview">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>نظرة عامة والتحليل</span>
+        </div>
+        <div class="admin-menu-item" data-target="panel-orders">
+          <i class="fa-solid fa-list-check"></i>
+          <span>الطلبات النشطة اليوم</span>
+        </div>
+        <div class="admin-menu-item" data-target="panel-products">
+          <i class="fa-solid fa-burger"></i>
+          <span>مبيعات الوجبات</span>
+        </div>
+        <div class="admin-menu-item" data-target="panel-settings">
+          <i class="fa-solid fa-sliders"></i>
+          <span>إعدادات النظام</span>
+        </div>
+      </nav>
+    </div>
+
+    <div class="admin-sidebar-footer">
+      <div class="view-switcher" style="background: rgba(255,255,255,0.03); flex-direction: column; gap: 8px; border-radius: 12px; padding: 8px; border: 1px solid var(--dark-border);">
+        <a href="index.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
+          <i class="fa-solid fa-mobile-screen-button" style="color: var(--primary-yellow);"></i>
+          <span style="font-size: 0.8rem;">شاشة جوال العميل</span>
+        </a>
+        <a href="kitchen.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
+          <i class="fa-solid fa-kitchen-set" style="color: var(--primary-yellow);"></i>
+          <span style="font-size: 0.8rem;">شاشة المطبخ (KDS)</span>
+        </a>
+        <a href="cashier.html" target="_blank" class="switcher-btn" style="text-decoration: none; display: flex; width: 100%; justify-content: flex-start; gap: 10px; color: var(--text-light-muted);">
+          <i class="fa-solid fa-cash-register" style="color: var(--primary-yellow);"></i>
+          <span style="font-size: 0.8rem;">شاشة الكاشير والمحاسب</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       MAIN CONTENT CONTAINER
+       ========================================================================== -->
+  <div class="admin-main-container">
+    <header class="admin-header">
+      <div class="admin-title-wrap">
+        <h1>لوحة الإدارة والمبيعات الرئيسية</h1>
+        <p>التحكم التشغيلي، مراقبة المبيعات وتدفق الطلبات المباشر لمطعم هاي بروست</p>
+      </div>
+
+      <div class="quick-sim-bar">
+        <button class="sim-btn" id="btn-auto-order" style="padding: 8px 16px; font-size: 0.85rem;">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>محاكاة طلب زبون جديد</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-content-area">
+
+      <!-- ==========================================================================
+           TAB PANEL 1: OVERVIEW & DASHBOARD
+           ========================================================================== -->
+      <div class="admin-tab-panel active" id="panel-overview">
+        <!-- KPI Metrics Grid -->
+        <div class="admin-metrics-grid">
+          <div class="admin-metric-card">
+            <div class="admin-metric-info">
+              <h4>إجمالي مبيعات البروستد المحصلة</h4>
+              <div class="val" id="admin-sales-total">0.00 ر.س</div>
+              <div class="trend up"><i class="fa-solid fa-arrow-trend-up"></i> +14.2% مقارنة بأمس</div>
+            </div>
+            <div class="admin-metric-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+          </div>
+          
+          <div class="admin-metric-card">
+            <div class="admin-metric-info">
+              <h4>عدد الطلبات اليومي</h4>
+              <div class="val" id="admin-orders-count">0</div>
+              <div class="trend up"><i class="fa-solid fa-receipt"></i> نشاط متزايد بالمطعم</div>
+            </div>
+            <div class="admin-metric-icon"><i class="fa-solid fa-pizza-slice"></i></div>
+          </div>
+
+          <div class="admin-metric-card">
+            <div class="admin-metric-info">
+              <h4>متوسط قيمة الوجبة المطلوبة</h4>
+              <div class="val" id="admin-avg-bill">0.00 ر.س</div>
+              <div class="trend up" style="color: var(--color-ready);"><i class="fa-solid fa-arrow-up"></i> إقبال كبير للعوائل</div>
+            </div>
+            <div class="admin-metric-icon"><i class="fa-solid fa-calculator"></i></div>
+          </div>
+
+          <div class="admin-metric-card">
+            <div class="admin-metric-info">
+              <h4>الطلبات النشطة الجارية</h4>
+              <div class="val" id="admin-active-orders-count">0</div>
+              <div class="trend neutral"><i class="fa-solid fa-kitchen-set"></i> قيد الفرم والتحضير والتسليم</div>
+            </div>
+            <div class="admin-metric-icon"><i class="fa-solid fa-clock"></i></div>
+          </div>
+        </div>
+
+        <!-- Dashboard widgets layout (Last Orders + Product Sales stats) -->
+        <div class="admin-widgets-grid">
+          <!-- Widget: Last Live Orders -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-clock-rotate-left" style="color: var(--primary-yellow);"></i> آخر الطلبات الحية في المطعم</h3>
+              <span style="font-size: 0.75rem; color: var(--text-light-muted);">مزامنة لحظية مباشرة</span>
+            </div>
+            <div class="admin-table-wrapper">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>رقم الطلب</th>
+                    <th>العميل الكريم</th>
+                    <th>الطاولة / طريقة التوصيل</th>
+                    <th>مجموع الوجبات</th>
+                    <th>الحالة التشغيلية</th>
+                    <th>حالة الدفع</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-recent-orders-rows">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Widget: Best Selling Chicken Items -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-fire" style="color: var(--primary-red);"></i> الأطباق الأكثر طلباً وقرمشة</h3>
+            </div>
+            <div id="admin-best-sellers-container" style="display: flex; flex-direction: column; gap: 6px;">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================================
+           TAB PANEL 2: ACTIVE ORDERS LIST
+           ========================================================================== -->
+      <div class="admin-tab-panel" id="panel-orders">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3><i class="fa-solid fa-receipt" style="color: var(--primary-yellow);"></i> سجل ومراقبة كافة طلبات اليوم الحية</h3>
+          </div>
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>رقم الطلب</th>
+                  <th>العميل</th>
+                  <th>رقم الهاتف</th>
+                  <th>طاولة / نوع</th>
+                  <th>الأصناف المطلوبة</th>
+                  <th>ملاحظات الطباخ</th>
+                  <th>المبلغ الإجمالي</th>
+                  <th>حالة التحضير</th>
+                  <th>حالة الفاتورة</th>
+                </tr>
+              </thead>
+              <tbody id="admin-all-orders-rows">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================================
+           TAB PANEL 3: PRODUCT DETAILED SALES DISTRIBUTION
+           ========================================================================== -->
+      <div class="admin-tab-panel" id="panel-products">
+        <div class="admin-widgets-grid" style="grid-template-columns: 1fr 1fr;">
+          <!-- Product sales volume card -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-chart-column" style="color: var(--primary-yellow);"></i> إحصائيات كمية المبيعات حسب الصنف</h3>
+            </div>
+            <div id="admin-categories-volume-container">
+              <!-- Dynamically populated categories -->
+            </div>
+          </div>
+
+          <!-- Best customer engagement stats -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-users" style="color: var(--primary-yellow);"></i> نشاط طاولات المطعم</h3>
+            </div>
+            <div class="admin-table-wrapper">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>رقم الطاولة</th>
+                    <th>عدد الطلبات اليومية</th>
+                    <th>إجمالي قيمة مبيعات الطاولة</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-tables-activity-rows">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================================================
+           TAB PANEL 4: SYSTEM CONFIGURATION & SETTINGS
+           ========================================================================== -->
+      <div class="admin-tab-panel" id="panel-settings">
+        <div class="admin-card" style="max-width: 600px;">
+          <div class="admin-card-header">
+            <h3><i class="fa-solid fa-gears" style="color: var(--primary-yellow);"></i> لوحة التحكم في قاعدة البيانات المحاكاة</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 10px;">
+            <p style="font-size: 0.85rem; color: var(--text-light-muted); line-height: 1.6;">
+              تتيح لك لوحة التحكم هذه إعادة تصفير النظام أو توليد كميات كبيرة من الطلبات العشوائية لمحاكاة ساعة الذروة في مطعم هاي بروست ومراقبة استجابة الشاشات الأخرى.
+            </p>
+            <div style="display: flex; gap: 12px;">
+              <button class="sim-btn" id="btn-admin-seed" style="background-color: rgba(16, 185, 129, 0.15); border-color: var(--color-ready); color: var(--color-ready); padding: 10px 18px;">
+                <i class="fa-solid fa-database"></i> شحن طلبات محاكاة جديدة
+              </button>
+              <button class="sim-btn" id="btn-admin-clear" style="background-color: rgba(239, 68, 68, 0.15); border-color: var(--color-new); color: var(--color-new); padding: 10px 18px;">
+                <i class="fa-solid fa-trash-can"></i> حذف كل طلبيات اليوم النشطة
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- TOAST ALERTS WRAPPER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Supabase JS Client library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Unified JS Controller -->
+  <script src="app.js"></script>
+</body>
+</html>

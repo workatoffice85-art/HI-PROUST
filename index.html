@@ -34,10 +34,20 @@
           </div>
 
           <div class="splash-form-card">
-            <div>
+            <!-- Table Selection Row (shown if no QR table) -->
+            <div id="table-selection-wrapper">
               <label class="form-label" id="lbl-select-table">اختر رقم الطاولة:</label>
               <div class="table-selector-grid" id="table-grid">
-                <!-- Generated via JS: 1 to 8 -->
+                <!-- Generated via JS: 1 to 12 -->
+              </div>
+            </div>
+
+            <!-- QR Table locked banner (shown if QR scanned) -->
+            <div id="qr-table-locked-wrapper" class="hidden" style="background-color: var(--primary-yellow-light); border: 2px solid var(--primary-yellow); border-radius: 16px; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 4px;">
+              <i class="fa-solid fa-qrcode" style="font-size: 1.5rem; color: var(--primary-red);"></i>
+              <div style="text-align: right; flex: 1;">
+                <span id="lbl-qr-table-status" style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); display: block;">تم مسح الرمز للطاولة:</span>
+                <span id="qr-table-display" style="font-size: 1.1rem; font-weight: 800; color: var(--primary-red);">طاولة 12</span>
               </div>
             </div>
 
@@ -262,7 +272,7 @@
               <div class="tracking-status-hero">
                 <div class="tracking-success-badge" id="tracking-success-badge"><i class="fa-solid fa-receipt"></i></div>
                 <h4 id="txt-track-num-lbl">رقم طلبك المميز</h4>
-                <div class="tracking-order-id-val" id="track-order-id">P101</div>
+                <div class="tracking-order-id-val" id="track-order-id">A102</div>
               </div>
 
               <!-- Step Timeline -->

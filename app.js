@@ -224,7 +224,9 @@ const TRANSLATIONS = {
     stepDoneDesc: "بالهناء والعافية ونأمل بزيارتك مجدداً لمطعمنا",
     estTimeLbl: "الوقت المقدر للتسليم",
     newOrderBtn: "طلب وجبة أخرى جديدة",
-    sar: "ر.س"
+    sar: "ر.س",
+    lblQrTableStatus: "تم مسح الرمز للطاولة:",
+    qrTableDisplayPrefix: "طاولة "
   },
   en: {
     splashTitle: "Hi Proust",
@@ -269,7 +271,9 @@ const TRANSLATIONS = {
     stepDoneDesc: "Enjoy your meal and we look forward to seeing you again!",
     estTimeLbl: "Estimated Ready Time",
     newOrderBtn: "Place Another Order",
-    sar: "SAR"
+    sar: "SAR",
+    lblQrTableStatus: "Table QR Code Scanned:",
+    qrTableDisplayPrefix: "Table "
   }
 };
 
@@ -508,6 +512,14 @@ function updateLanguageUI() {
   document.getElementById('txt-est-time-lbl').innerText = L.estTimeLbl;
   document.getElementById('txt-new-order-btn').innerText = L.newOrderBtn;
 
+  // Update QR table locked banner translations if active
+  const lockedStatusLbl = document.getElementById('lbl-qr-table-status');
+  const lockedDisplay = document.getElementById('qr-table-display');
+  if (lockedStatusLbl && lockedDisplay) {
+    lockedStatusLbl.innerText = L.lblQrTableStatus;
+    lockedDisplay.innerText = L.qrTableDisplayPrefix + AppState.selectedTable;
+  }
+
   // Render categories and menu catalog with translated keys
   renderMenuCategories();
   renderMenuCatalog();
@@ -550,8 +562,9 @@ function switchMobileScreen(targetId) {
 // Generate Splash screen tables selection
 function renderTableGrid() {
   const grid = document.getElementById('table-grid');
+  if (!grid) return;
   grid.innerHTML = '';
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 1; i <= 12; i++) {
     const btn = document.createElement('button');
     btn.className = `table-btn ${i === AppState.selectedTable ? 'active' : ''}`;
     btn.innerText = i;
@@ -564,6 +577,38 @@ function renderTableGrid() {
     });
     grid.appendChild(btn);
   }
+}
+
+// URL QR table code check locking
+function checkTableQRParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tableVal = urlParams.get('table') || urlParams.get('t');
+  
+  const selectionWrapper = document.getElementById('table-selection-wrapper');
+  const lockedWrapper = document.getElementById('qr-table-locked-wrapper');
+  const lockedDisplay = document.getElementById('qr-table-display');
+  const lockedStatusLbl = document.getElementById('lbl-qr-table-status');
+  
+  if (tableVal) {
+    const tableNum = parseInt(tableVal);
+    if (!isNaN(tableNum) && tableNum > 0) {
+      AppState.selectedTable = tableNum;
+      
+      if (selectionWrapper) selectionWrapper.classList.add('hidden');
+      if (lockedWrapper) lockedWrapper.classList.remove('hidden');
+      
+      const L = TRANSLATIONS[AppState.selectedLang];
+      if (lockedDisplay) lockedDisplay.innerText = L.qrTableDisplayPrefix + tableNum;
+      if (lockedStatusLbl) lockedStatusLbl.innerText = L.lblQrTableStatus;
+      
+      updateTableTags();
+      return true;
+    }
+  }
+  
+  if (selectionWrapper) selectionWrapper.classList.remove('hidden');
+  if (lockedWrapper) lockedWrapper.classList.add('hidden');
+  return false;
 }
 
 // ==========================================================================
@@ -835,9 +880,9 @@ function triggerPlaceOrder() {
   const tax = subtotal * 0.15;
   const total = subtotal + tax;
 
-  // Generate unique order ID (e.g. P101)
+  // Generate unique order ID (e.g. A102)
   const orderIdNum = AppState.orders.length > 0 ? parseInt(AppState.orders[AppState.orders.length - 1].id.slice(1)) + 1 : 101;
-  const orderId = "P" + orderIdNum;
+  const orderId = "A" + orderIdNum;
 
   // Formulate Order items mapping
   const orderItems = AppState.cart.map(c => {
@@ -1538,7 +1583,7 @@ function prePopulateHistoricalOrders() {
 
   // Seed 1: A Paid & Completed Dine-in Order
   AppState.orders.push({
-    id: "P098",
+    id: "A098",
     table: 4,
     name: "أحمد بن فهد",
     phone: "0558877665",
@@ -1561,7 +1606,7 @@ function prePopulateHistoricalOrders() {
 
   // Seed 2: An Unpaid Preparing Takeaway Order
   AppState.orders.push({
-    id: "P099",
+    id: "A099",
     table: 1,
     name: "منيرة السديري",
     phone: "0543322110",
@@ -1584,7 +1629,7 @@ function prePopulateHistoricalOrders() {
 
   // Seed 3: An Unpaid New Dine-in Order
   AppState.orders.push({
-    id: "P100",
+    id: "A100",
     table: 6,
     name: "سلطان العجمي",
     phone: "0565544332",
@@ -1911,6 +1956,7 @@ function initCustomerView() {
       currentPhoneDigits = "";
       document.getElementById('name-input').value = "";
       renderPhoneDisplay();
+      checkTableQRParam();
       switchMobileScreen('mobile-splash');
     });
   }
@@ -1926,8 +1972,9 @@ function initCustomerView() {
     });
   });
 
-  // Render initial grid setup
+  // Render initial grid setup and check URL QR parameters
   renderTableGrid();
+  checkTableQRParam();
   updateLanguageUI();
 }
 
@@ -2002,6 +2049,293 @@ function initCashierView() {
 }
 
 // ==========================================================================
+// 14.5 OWNER & MANAGER ADMIN VIEW CONTROLLER
+// ==========================================================================
+function initAdminView() {
+  renderAdminDashboard();
+
+  // Sidebar Tab Switches
+  document.querySelectorAll('.admin-menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.querySelectorAll('.admin-menu-item').forEach(b => b.classList.remove('active'));
+      item.classList.add('active');
+
+      const targetPanelId = item.getAttribute('data-target');
+      document.querySelectorAll('.admin-tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+        if (panel.id === targetPanelId) {
+          panel.classList.add('active');
+        }
+      });
+    });
+  });
+
+  // Simulation order binding
+  const btnAuto = document.getElementById('btn-auto-order');
+  if (btnAuto) {
+    btnAuto.addEventListener('click', () => {
+      triggerAutoMockOrder();
+    });
+  }
+
+  // Seed Button
+  const btnSeed = document.getElementById('btn-admin-seed');
+  if (btnSeed) {
+    btnSeed.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      triggerAutoMockOrder();
+      setTimeout(() => triggerAutoMockOrder(), 300);
+      setTimeout(() => triggerAutoMockOrder(), 600);
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? "تم شحن ٣ طلبات محاكاة دفعة واحدة!" : "Seeded 3 mock orders successfully!",
+        'ready'
+      );
+    });
+  }
+
+  // Clear Button
+  const btnClear = document.getElementById('btn-admin-clear');
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (confirm(AppState.selectedLang === 'ar' ? "هل أنت متأكد من حذف كافة طلبيات اليوم بالكامل؟" : "Are you sure you want to delete all daily orders?")) {
+        AppState.orders = [];
+        saveToLocalStorage();
+        
+        if (supabaseClient) {
+          supabaseClient.from('orders').delete().neq('id', 'placeholder').then(() => {
+            console.log("Supabase orders cleared");
+          });
+        }
+        
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? "تم تفريغ كافة الطلبيات بنجاح!" : "All orders deleted successfully!",
+          'new'
+        );
+        renderAdminDashboard();
+      }
+    });
+  }
+}
+
+function renderAdminDashboard() {
+  const L = TRANSLATIONS[AppState.selectedLang];
+
+  // Calculate Metrics
+  let salesSum = 0;
+  let ordersCount = 0;
+  let activeOrdersCount = 0;
+  let paidOrdersCount = 0;
+
+  AppState.orders.forEach(o => {
+    ordersCount++;
+    if (o.paymentStatus === 'paid') {
+      salesSum += o.total;
+      paidOrdersCount++;
+    }
+    if (o.status !== 'completed') {
+      activeOrdersCount++;
+    }
+  });
+
+  const avgBill = paidOrdersCount > 0 ? (salesSum / paidOrdersCount) : 0;
+
+  // Render KPI values
+  const salesLbl = document.getElementById('admin-sales-total');
+  const countLbl = document.getElementById('admin-orders-count');
+  const avgLbl = document.getElementById('admin-avg-bill');
+  const activeLbl = document.getElementById('admin-active-orders-count');
+
+  if (salesLbl) salesLbl.innerText = salesSum.toFixed(2) + " " + L.sar;
+  if (countLbl) countLbl.innerText = ordersCount;
+  if (avgLbl) avgLbl.innerText = avgBill.toFixed(2) + " " + L.sar;
+  if (activeLbl) activeLbl.innerText = activeOrdersCount;
+
+  // 1. Render Recent Orders Rows (Overview Tab)
+  const recentRows = document.getElementById('admin-recent-orders-rows');
+  if (recentRows) {
+    recentRows.innerHTML = '';
+    const latestOrders = AppState.orders.slice(-5).reverse();
+    if (latestOrders.length === 0) {
+      recentRows.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-light-muted); padding: 20px;">${AppState.selectedLang === 'ar' ? 'لا توجد طلبات اليوم بعد' : 'No orders recorded today'}</td></tr>`;
+    } else {
+      latestOrders.forEach(o => {
+        const typeLabel = o.type === 'dine-in' 
+          ? (AppState.selectedLang === 'ar' ? `محلي ط<sup>${o.table}</sup>` : `Dine-in T<sup>${o.table}</sup>`)
+          : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
+          
+        let statusTag = `<span class="badge-status ${o.status}">${o.status === 'new' ? (AppState.selectedLang === 'ar' ? 'جديد' : 'New') : o.status === 'preparing' ? (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'In Prep') : o.status === 'ready' ? (AppState.selectedLang === 'ar' ? 'جاهز' : 'Ready') : (AppState.selectedLang === 'ar' ? 'مكتمل' : 'Done')}</span>`;
+        let payTag = `<span class="badge-pay ${o.paymentStatus}">${o.paymentStatus === 'paid' ? (AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid') : (AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid')}</span>`;
+        
+        const itemsSummary = o.items.map(itm => `${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}`).join(' ، ');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-weight: 800; color: var(--primary-red);">${o.id}</td>
+          <td><div style="font-weight:700;">${o.name}</div></td>
+          <td style="font-weight: 600;">${typeLabel}</td>
+          <td style="font-size:0.75rem; color:var(--text-light-muted); max-width:240px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${itemsSummary}">${itemsSummary}</td>
+          <td>${statusTag}</td>
+          <td>${payTag}</td>
+        `;
+        recentRows.appendChild(tr);
+      });
+    }
+  }
+
+  // 2. Render All Orders Rows (Orders Tab)
+  const allRows = document.getElementById('admin-all-orders-rows');
+  if (allRows) {
+    allRows.innerHTML = '';
+    const sortedOrders = AppState.orders.slice().reverse();
+    if (sortedOrders.length === 0) {
+      allRows.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-light-muted); padding: 20px;">${AppState.selectedLang === 'ar' ? 'لا توجد طلبات نشطة اليوم' : 'No active orders today'}</td></tr>`;
+    } else {
+      sortedOrders.forEach(o => {
+        const typeLabel = o.type === 'dine-in' 
+          ? (AppState.selectedLang === 'ar' ? `محلي ط<sup>${o.table}</sup>` : `Dine-in T<sup>${o.table}</sup>`)
+          : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
+          
+        let statusTag = `<span class="badge-status ${o.status}">${o.status === 'new' ? (AppState.selectedLang === 'ar' ? 'جديد' : 'New') : o.status === 'preparing' ? (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'In Prep') : o.status === 'ready' ? (AppState.selectedLang === 'ar' ? 'جاهز' : 'Ready') : (AppState.selectedLang === 'ar' ? 'مكتمل' : 'Done')}</span>`;
+        let payTag = `<span class="badge-pay ${o.paymentStatus}">${o.paymentStatus === 'paid' ? (AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid') : (AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid')}</span>`;
+        
+        const itemsSummary = o.items.map(itm => `${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}`).join('<br>');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-weight: 800; color: var(--primary-red);">${o.id}</td>
+          <td style="font-weight: 700;">${o.name}</td>
+          <td style="font-size:0.75rem; color:var(--text-light-muted);">${o.phone}</td>
+          <td style="font-weight: 600;">${typeLabel}</td>
+          <td style="font-size:0.75rem; line-height:1.3;">${itemsSummary}</td>
+          <td style="font-size:0.75rem; color:var(--primary-yellow);">${o.notes || '-'}</td>
+          <td style="font-weight: 800; color:var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</td>
+          <td>${statusTag}</td>
+          <td>${payTag}</td>
+        `;
+        allRows.appendChild(tr);
+      });
+    }
+  }
+
+  // 3. Render Best Selling Products Chart (Overview Tab & Products Tab)
+  const bestSellersContainer = document.getElementById('admin-best-sellers-container');
+  if (bestSellersContainer) {
+    bestSellersContainer.innerHTML = '';
+    
+    const salesMap = {};
+    AppState.orders.forEach(o => {
+      o.items.forEach(itm => {
+        salesMap[itm.id] = (salesMap[itm.id] || 0) + itm.qty;
+      });
+    });
+
+    const menuStats = MENU.map(m => {
+      return {
+        id: m.id,
+        name: AppState.selectedLang === 'ar' ? m.nameAr : m.nameEn,
+        qty: salesMap[m.id] || 0
+      };
+    }).sort((a, b) => b.qty - a.qty);
+
+    const maxSold = menuStats[0] ? menuStats[0].qty : 1;
+
+    menuStats.forEach(itm => {
+      if (itm.qty === 0) return;
+
+      const pct = maxSold > 0 ? (itm.qty / maxSold) * 100 : 0;
+      
+      const div = document.createElement('div');
+      div.className = 'product-stat-row';
+      div.innerHTML = `
+        <div class="product-stat-info">
+          <span>${itm.name}</span>
+          <span style="color:var(--primary-yellow);">${itm.qty} ${AppState.selectedLang === 'ar' ? 'وجبة' : 'sold'}</span>
+        </div>
+        <div class="product-stat-bar-container">
+          <div class="product-stat-bar" style="width: ${pct}%;"></div>
+        </div>
+      `;
+      bestSellersContainer.appendChild(div);
+    });
+
+    if (bestSellersContainer.children.length === 0) {
+      bestSellersContainer.innerHTML = `<div style="text-align:center; padding:30px 10px; color:var(--text-light-muted);">${AppState.selectedLang === 'ar' ? 'لا تتوفر إحصائيات بيع اليوم' : 'No sales charts recorded yet'}</div>`;
+    }
+  }
+
+  // 4. Render Product Detailed Sales distribution by Category (Products Tab)
+  const categoriesVolumeContainer = document.getElementById('admin-categories-volume-container');
+  if (categoriesVolumeContainer) {
+    categoriesVolumeContainer.innerHTML = '';
+    
+    const catMap = {};
+    AppState.orders.forEach(o => {
+      o.items.forEach(itm => {
+        const itemMenuDef = MENU.find(m => m.id === itm.id);
+        if (itemMenuDef) {
+          catMap[itemMenuDef.cat] = (catMap[itemMenuDef.cat] || 0) + itm.qty;
+        }
+      });
+    });
+
+    CATEGORIES.forEach(cat => {
+      if (cat.id === 'all') return;
+      const count = catMap[cat.id] || 0;
+      const catName = AppState.selectedLang === 'ar' ? cat.nameAr : cat.nameEn;
+      
+      const div = document.createElement('div');
+      div.className = 'product-stat-row';
+      div.innerHTML = `
+        <div class="product-stat-info">
+          <span>${catName}</span>
+          <span style="color:var(--primary-yellow);">${count} ${AppState.selectedLang === 'ar' ? 'عنصر' : 'pcs'}</span>
+        </div>
+        <div class="product-stat-bar-container" style="background-color: var(--dark-border);">
+          <div class="product-stat-bar" style="width: ${Math.min(100, count * 10)}%; background: var(--primary-yellow);"></div>
+        </div>
+      `;
+      categoriesVolumeContainer.appendChild(div);
+    });
+  }
+
+  // 5. Render Tables Activity rows
+  const tablesActivityRows = document.getElementById('admin-tables-activity-rows');
+  if (tablesActivityRows) {
+    tablesActivityRows.innerHTML = '';
+    
+    const tablesMap = {};
+    for (let i = 1; i <= 12; i++) tablesMap[i] = { count: 0, revenue: 0 };
+
+    AppState.orders.forEach(o => {
+      if (o.type === 'dine-in' && o.table >= 1 && o.table <= 12) {
+        tablesMap[o.table].count++;
+        if (o.paymentStatus === 'paid') {
+          tablesMap[o.table].revenue += o.total;
+        }
+      }
+    });
+
+    for (let i = 1; i <= 12; i++) {
+      if (tablesMap[i].count === 0) continue;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:800; color:var(--primary-yellow);">${AppState.selectedLang === 'ar' ? 'طاولة ' + i : 'Table ' + i}</td>
+        <td style="font-weight:700;">${tablesMap[i].count}</td>
+        <td style="font-weight:800; color:var(--color-ready);">${tablesMap[i].revenue.toFixed(2)} ${L.sar}</td>
+      `;
+      tablesActivityRows.appendChild(tr);
+    }
+
+    if (tablesActivityRows.children.length === 0) {
+      tablesActivityRows.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-light-muted); padding:20px;">${AppState.selectedLang === 'ar' ? 'لا يوجد نشاط طاولات محلي حالياً' : 'No active tables local orders today'}</td></tr>`;
+    }
+  }
+}
+
+// ==========================================================================
 // 15. MAIN DOM CONTENT LOADED DISPATCHER
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -2020,6 +2354,9 @@ window.addEventListener('DOMContentLoaded', () => {
     } else if (bodyId === 'cashier-body') {
       AppState.activeRole = 'cashier-view';
       initCashierView();
+    } else if (bodyId === 'admin-body') {
+      AppState.activeRole = 'admin-view';
+      initAdminView();
     } else {
       // Fallback fallback
       initCustomerView();
@@ -2036,6 +2373,7 @@ window.addEventListener('DOMContentLoaded', () => {
           loadFromLocalStorage().then(() => {
             // Re-render corresponding panels
             if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
+            if (AppState.activeRole === 'admin-view') renderAdminDashboard();
             if (AppState.activeRole === 'cashier-view') {
               renderCashierOrdersTable();
               updateCashierMetrics();
