@@ -292,6 +292,7 @@ const AppState = {
   selectedLang: 'ar',
   activeRole: 'customer-view', // 'customer-view' | 'kitchen-view' | 'cashier-view'
   totalTables: 12,
+  staticDataLoaded: false,
   
   // Customer Details
   phoneNumber: '',
@@ -338,59 +339,63 @@ async function loadFromLocalStorage() {
 
   // Cloud Database Integration (Supabase)
   if (supabaseClient) {
-    // 0. Fetch Settings
-    try {
-      const { data: setVal } = await supabaseClient
-        .from('settings')
-        .select('*')
-        .eq('key', 'total_tables')
-        .single();
-      if (setVal && setVal.value) {
-        AppState.totalTables = parseInt(setVal.value) || 12;
+    if (!AppState.staticDataLoaded) {
+      // 0. Fetch Settings
+      try {
+        const { data: setVal } = await supabaseClient
+          .from('settings')
+          .select('*')
+          .eq('key', 'total_tables')
+          .single();
+        if (setVal && setVal.value) {
+          AppState.totalTables = parseInt(setVal.value) || 12;
+        }
+      } catch (err) {
+        console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
       }
-    } catch (err) {
-      console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
-    }
-    // A. Fetch Categories
-    try {
-      const { data: catData, error: catError } = await supabaseClient
-        .from('categories')
-        .select('*');
-      if (catData && catData.length > 0) {
-        const dbCats = catData.map(c => ({
-          id: c.id,
-          nameAr: c.name_ar,
-          nameEn: c.name_en
-        }));
-        // Ensure "All Items" (all) category is always at the top of customer categories
-        CATEGORIES = [{ id: "all", nameAr: "كل الأطباق", nameEn: "All Items" }, ...dbCats];
+      // A. Fetch Categories
+      try {
+        const { data: catData, error: catError } = await supabaseClient
+          .from('categories')
+          .select('*');
+        if (catData && catData.length > 0) {
+          const dbCats = catData.map(c => ({
+            id: c.id,
+            nameAr: c.name_ar,
+            nameEn: c.name_en
+          }));
+          // Ensure "All Items" (all) category is always at the top of customer categories
+          CATEGORIES = [{ id: "all", nameAr: "كل الأطباق", nameEn: "All Items" }, ...dbCats];
+        }
+      } catch (err) {
+        console.warn("Supabase categories fetch error:", err);
       }
-    } catch (err) {
-      console.warn("Supabase categories fetch error:", err);
-    }
 
-    // B. Fetch Products
-    try {
-      const { data: prodData, error: prodError } = await supabaseClient
-        .from('products')
-        .select('*');
-      if (prodData && prodData.length > 0) {
-        MENU = prodData.map(p => ({
-          id: p.id,
-          cat: p.category_id,
-          nameAr: p.name_ar,
-          nameEn: p.name_en,
-          descAr: p.description_ar || '',
-          descEn: p.description_en || '',
-          price: Number(p.price),
-          spicy: p.is_spicy,
-          bestSeller: p.is_bestseller,
-          svg: p.image_url || '',
-          imageUrl: p.image_url || null
-        }));
+      // B. Fetch Products
+      try {
+        const { data: prodData, error: prodError } = await supabaseClient
+          .from('products')
+          .select('*');
+        if (prodData && prodData.length > 0) {
+          MENU = prodData.map(p => ({
+            id: p.id,
+            cat: p.category_id,
+            nameAr: p.name_ar,
+            nameEn: p.name_en,
+            descAr: p.description_ar || '',
+            descEn: p.description_en || '',
+            price: Number(p.price),
+            spicy: p.is_spicy,
+            bestSeller: p.is_bestseller,
+            svg: p.image_url || '',
+            imageUrl: p.image_url || null
+          }));
+        }
+      } catch (err) {
+        console.warn("Supabase products fetch error:", err);
       }
-    } catch (err) {
-      console.warn("Supabase products fetch error:", err);
+
+      AppState.staticDataLoaded = true;
     }
 
     // C. Fetch Orders
@@ -2864,17 +2869,16 @@ function initAdminView() {
         try {
           const { error } = await supabaseClient.from('categories').upsert(categoryPayload);
           if (error) {
-            console.error("Supabase category save error:", error);
+            console.warn("Supabase category save error (proceeding with local fallback):", error);
             showToastNotification(
               AppState.selectedLang === 'ar' 
-                ? `فشل الحفظ في قاعدة البيانات: ${error.message}` 
-                : `Database save failed: ${error.message}`, 
+                ? `تنبيه: فشل الحفظ السحابي للقسم، تم التحديث محلياً!` 
+                : `Warning: Cloud category save failed, updated locally!`, 
               'new'
             );
-            return;
           }
         } catch (err) {
-          console.error("Error saving category:", err);
+          console.warn("Error saving category (proceeding with local fallback):", err);
         }
       }
 
@@ -2959,19 +2963,59 @@ function initAdminView() {
     });
   }
 
+  // Compression helper
+  function compressAndBase64Image(file, callback) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let width = img.width;
+        let height = img.height;
+        const max_size = 400; // Keep file sizes around 20-30KB while keeping high fidelity!
+        
+        if (width > height) {
+          if (width > max_size) {
+            height *= max_size / width;
+            width = max_size;
+          }
+        } else {
+          if (height > max_size) {
+            width *= max_size / height;
+            height = max_size;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% quality jpeg is tiny and fast!
+        callback(compressedDataUrl);
+      };
+      img.onerror = function() {
+        callback(e.target.result);
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() {
+      console.error("FileReader failed");
+    };
+    reader.readAsDataURL(file);
+  }
+
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          selectedBase64Image = event.target.result;
+        compressAndBase64Image(file, (compressedBase64) => {
+          selectedBase64Image = compressedBase64;
           if (previewBox) {
             previewBox.innerHTML = `<img src="${selectedBase64Image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">`;
           }
           if (urlInput) urlInput.value = '';
-        };
-        reader.readAsDataURL(file);
+        });
       }
     });
   }
@@ -3041,17 +3085,16 @@ function initAdminView() {
         try {
           const { error } = await supabaseClient.from('products').upsert(productPayload);
           if (error) {
-            console.error("Supabase product save error:", error);
+            console.warn("Supabase product save error (proceeding with local fallback):", error);
             showToastNotification(
               AppState.selectedLang === 'ar' 
-                ? `فشل الحفظ في قاعدة البيانات: ${error.message}` 
-                : `Database save failed: ${error.message}`, 
+                ? `تنبيه: فشل الحفظ السحابي، تم التحديث محلياً!` 
+                : `Warning: Cloud product save failed, updated locally!`, 
               'new'
             );
-            return;
           }
         } catch (err) {
-          console.error("Error saving product:", err);
+          console.warn("Error saving product (proceeding with local fallback):", err);
         }
       }
 
