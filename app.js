@@ -2019,7 +2019,7 @@ const STAFF_PROFILES = [
   { id: 'fahad', name: 'المدير فهد', nameEn: 'Manager Fahad', role: 'admin', pin: '1111', avatar: '👨‍💼' },
   { id: 'sarah', name: 'المديرة سارة', nameEn: 'Manager Sarah', role: 'admin', pin: '2222', avatar: '👩‍💼' },
   { id: 'salem', name: 'الكاشير سالم', nameEn: 'Cashier Salem', role: 'cashier', pin: '3333', avatar: '👨‍💻' },
-  { id: 'khalid', name: 'الكاشير خالد', nameEn: 'Cashier Khalid', role: 'cashier', pin: '4444', avatar: '👨(' },
+  { id: 'khalid', name: 'الكاشير خالد', nameEn: 'Cashier Khalid', role: 'cashier', pin: '4444', avatar: '👨‍💻' },
   { id: 'omar', name: 'الشيف عمر', nameEn: 'Chef Omar', role: 'kitchen', pin: '5555', avatar: '👨‍🍳' },
   { id: 'tariq', name: 'الشيف طارق', nameEn: 'Chef Tariq', role: 'kitchen', pin: '6666', avatar: '👨‍🍳' }
 ];
