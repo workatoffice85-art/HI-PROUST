@@ -203,7 +203,7 @@ const TRANSLATIONS = {
     billSub: "المجموع الفرعي",
     billTax: "ضريبة القيمة المضافة (15%)",
     billTotal: "المجموع الإجمالي",
-    btnCartCheckout: "تحديد طريقة الاستلام",
+    btnCartCheckout: "تأكيد وإرسال الطلب للمطبخ",
     titleType: "طريقة الاستلام",
     promptType: "أين ستستمتع بالوجبة؟",
     descType: "اختر تناول الوجبة داخل صالة المطعم أو تجهيزها سفري كرتون سفاري",
@@ -252,7 +252,7 @@ const TRANSLATIONS = {
     billSub: "Subtotal",
     billTax: "VAT (15%)",
     billTotal: "Total Amount Due",
-    btnCartCheckout: "Choose Delivery Method",
+    btnCartCheckout: "Confirm & Place Order",
     titleType: "Delivery Type",
     promptType: "Where will you enjoy your meal?",
     descType: "Choose dine-in inside our spacious lobby or quick takeaway packaging",
@@ -354,11 +354,25 @@ async function loadFromLocalStorage() {
           elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
         }));
         
-        // Trigger UI updates
+        // Trigger UI updates in real-time across all views
         if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
+        if (AppState.activeRole === 'admin-view') renderAdminDashboard();
         if (AppState.activeRole === 'cashier-view') {
           renderCashierOrdersTable();
           updateCashierMetrics();
+          if (selectedOrderForCheckout) {
+            const refreshedOrder = AppState.orders.find(o => o.id === selectedOrderForCheckout.id);
+            if (refreshedOrder) {
+              selectedOrderForCheckout = refreshedOrder;
+              renderCashierCheckoutSidebar();
+            }
+          }
+        }
+        if (AppState.activeRole === 'customer-view' && AppState.activeOrderId) {
+          const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+          if (trackingOrder) {
+            updateLiveTrackingUI(trackingOrder);
+          }
         }
       }
     } catch (err) {
@@ -1968,39 +1982,12 @@ function initCustomerView() {
     });
   }
 
-  // Cart Checkout type
+  // Cart Checkout - Direct Place Order (bypass intermediate delivery selection screen)
   const btnCartCheckout = document.getElementById('btn-cart-checkout');
   if (btnCartCheckout) {
     btnCartCheckout.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
       if (AppState.cart.length === 0) return;
-      switchMobileScreen('mobile-order-type');
-    });
-  }
-
-  // Dine-in vs Takeaway Selection
-  const dineCard = document.getElementById('card-dine-in');
-  const takeCard = document.getElementById('card-takeaway');
-  if (dineCard && takeCard) {
-    dineCard.addEventListener('click', () => {
-      AudioSynthesizer.playBeep();
-      dineCard.classList.add('active');
-      takeCard.classList.remove('active');
-      AppState.deliveryType = 'dine-in';
-    });
-
-    takeCard.addEventListener('click', () => {
-      AudioSynthesizer.playBeep();
-      takeCard.classList.add('active');
-      dineCard.classList.remove('active');
-      AppState.deliveryType = 'takeaway';
-    });
-  }
-
-  // Place Order button
-  const btnPlaceOrder = document.getElementById('btn-place-order');
-  if (btnPlaceOrder) {
-    btnPlaceOrder.addEventListener('click', () => {
       triggerPlaceOrder();
     });
   }
@@ -2529,28 +2516,18 @@ window.addEventListener('DOMContentLoaded', () => {
         .channel('public:orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
           console.log('Database changes detected via Supabase Realtime!', payload);
-          loadFromLocalStorage().then(() => {
-            // Re-render corresponding panels
-            if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
-            if (AppState.activeRole === 'admin-view') renderAdminDashboard();
-            if (AppState.activeRole === 'cashier-view') {
-              renderCashierOrdersTable();
-              updateCashierMetrics();
-              if (selectedOrderForCheckout) {
-                const refreshedOrder = AppState.orders.find(o => o.id === selectedOrderForCheckout.id);
-                if (refreshedOrder) {
-                  selectedOrderForCheckout = refreshedOrder;
-                  renderCashierCheckoutSidebar();
-                }
-              }
-            }
-            if (AppState.activeRole === 'customer-view' && AppState.activeOrderId) {
-              const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
-              if (trackingOrder) updateLiveTrackingUI(trackingOrder);
-            }
-          });
+          loadFromLocalStorage();
         })
         .subscribe();
     }
   });
 });
+
+// Periodic database synchronization polling fallback (every 3 seconds)
+// This ensures all screens (customer, KDS, Cashier, Admin) stay updated in real-time
+// even if Supabase websocket/realtime changes are not turned on or have replication disabled in the dashboard.
+setInterval(() => {
+  if (supabaseClient) {
+    loadFromLocalStorage();
+  }
+}, 3000);
