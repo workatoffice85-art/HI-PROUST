@@ -2422,229 +2422,265 @@ function prePopulateHistoricalOrders() {
 // 13.5 CUSTOMER PROFILE & LOYALTY RENDERER
 // ==========================================================================
 function renderCustomerProfileScreen() {
-  const nameLabel = document.getElementById('profile-user-name');
-  const phoneLabel = document.getElementById('profile-user-phone');
-  const historyContainer = document.getElementById('profile-orders-history');
-  
-  nameLabel.innerText = AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل مميز" : "Valued Customer");
-  phoneLabel.innerText = AppState.phoneNumber || "01XXXXXXXXX";
-
-  const L = TRANSLATIONS[AppState.selectedLang];
-
-  // Show a beautiful loading spinner inside history container
-  historyContainer.innerHTML = `
-    <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; width: 100%;">
-      <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.8rem; color: var(--primary-red); margin-bottom: 8px;"></i>
-      <p style="font-size: 0.75rem;">${AppState.selectedLang === 'ar' ? 'جاري تحميل وجباتك السابقة...' : 'Loading your past meals...'}</p>
-    </div>
-  `;
-
-  const renderHistoryUI = (customerOrders) => {
-    const completedOrdersCount = customerOrders.filter(o => o.status === 'completed' || o.paymentStatus === 'paid').length;
+  try {
+    console.log("Entering renderCustomerProfileScreen...");
+    const nameLabel = document.getElementById('profile-user-name');
+    const phoneLabel = document.getElementById('profile-user-phone');
+    const historyContainer = document.getElementById('profile-orders-history');
     
-    // Loyalty progress rules: completed orders count modulo 5
-    const currentProgress = completedOrdersCount % 5;
-    const progressPercent = (currentProgress / 5) * 100;
-    
-    const loyaltyBar = document.getElementById('profile-loyalty-bar');
-    if (loyaltyBar) loyaltyBar.style.width = `${progressPercent}%`;
-    
-    const loyaltyPercent = document.getElementById('profile-loyalty-percent');
-    if (loyaltyPercent) loyaltyPercent.innerText = `${progressPercent}%`;
-    
-    const countLabel = AppState.selectedLang === 'ar' 
-      ? `الطلبات الحالية: ${currentProgress} / 5` 
-      : `Current orders: ${currentProgress} / 5`;
-    const loyaltyCount = document.getElementById('profile-loyalty-count');
-    if (loyaltyCount) loyaltyCount.innerText = countLabel;
-
-    // Set Loyalty level title based on order count
-    const tierBadge = document.getElementById('profile-loyalty-tier');
-    if (tierBadge) {
-      if (completedOrdersCount >= 10) {
-        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الماسية 💎' : 'Diamond Tier 💎';
-        tierBadge.style.backgroundColor = '#E2E8F0';
-        tierBadge.style.color = '#1E293B';
-      } else if (completedOrdersCount >= 5) {
-        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة البلاتينية 👑' : 'Platinum Tier 👑';
-        tierBadge.style.backgroundColor = '#1E293B';
-        tierBadge.style.color = '#F1F5F9';
-      } else {
-        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الذهبية 🌟' : 'Gold Tier 🌟';
-        tierBadge.style.backgroundColor = '#121214';
-        tierBadge.style.color = '#FFC107';
-      }
+    if (nameLabel) {
+      nameLabel.innerText = AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل مميز" : "Valued Customer");
+    }
+    if (phoneLabel) {
+      phoneLabel.innerText = AppState.phoneNumber || "01XXXXXXXXX";
     }
 
-    // Render list
-    historyContainer.innerHTML = '';
-    
-    if (customerOrders.length === 0) {
+    const lang = AppState.selectedLang || 'ar';
+    const L = TRANSLATIONS[lang] || TRANSLATIONS['ar'];
+
+    if (historyContainer) {
+      // Show a beautiful loading spinner inside history container
       historyContainer.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; background-color: #fff; border-radius: 12px; border: 1px dashed var(--light-border); width: 100%;">
-          <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--light-border); margin-bottom: 8px;"></i>
-          <p style="font-size: 0.75rem;">${AppState.selectedLang === 'ar' ? 'لا يوجد لديك طلبات سابقة بعد!' : 'No past orders registered yet!'}</p>
+        <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; width: 100%;">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.8rem; color: var(--primary-red); margin-bottom: 8px;"></i>
+          <p style="font-size: 0.75rem;">${lang === 'ar' ? 'جاري تحميل وجباتك السابقة...' : 'Loading your past meals...'}</p>
         </div>
       `;
-      return;
     }
 
-    // Render reverse chronological history
-    customerOrders.forEach(o => {
-      const card = document.createElement('div');
-      card.className = 'history-order-card';
-      card.style.backgroundColor = '#fff';
-      card.style.border = '1px solid rgba(0,0,0,0.03)';
-      card.style.borderRadius = '12px';
-      card.style.padding = '12px';
-      card.style.width = '100%';
-      card.style.display = 'flex';
-      card.style.flexDirection = 'column';
-      card.style.gap = '6px';
-      card.style.textAlign = 'right';
+    const renderHistoryUI = (customerOrders) => {
+      try {
+        if (!historyContainer) return;
+        if (!Array.isArray(customerOrders)) {
+          customerOrders = [];
+        }
+        const completedOrdersCount = customerOrders.filter(o => o && (o.status === 'completed' || o.paymentStatus === 'paid')).length;
+        
+        // Loyalty progress rules: completed orders count modulo 5
+        const currentProgress = completedOrdersCount % 5;
+        const progressPercent = (currentProgress / 5) * 100;
+        
+        const loyaltyBar = document.getElementById('profile-loyalty-bar');
+        if (loyaltyBar) loyaltyBar.style.width = `${progressPercent}%`;
+        
+        const loyaltyPercent = document.getElementById('profile-loyalty-percent');
+        if (loyaltyPercent) loyaltyPercent.innerText = `${progressPercent}%`;
+        
+        const countLabel = lang === 'ar' 
+          ? `الطلبات الحالية: ${currentProgress} / 5` 
+          : `Current orders: ${currentProgress} / 5`;
+        const loyaltyCount = document.getElementById('profile-loyalty-count');
+        if (loyaltyCount) loyaltyCount.innerText = countLabel;
 
-      const itemsSummary = o.items.map(itm => {
-        const name = AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn;
-        return `${itm.qty}x ${name}`;
-      }).join(' ، ');
+        // Set Loyalty level title based on order count
+        const tierBadge = document.getElementById('profile-loyalty-tier');
+        if (tierBadge) {
+          if (completedOrdersCount >= 10) {
+            tierBadge.innerText = lang === 'ar' ? 'الطبقة الماسية 💎' : 'Diamond Tier 💎';
+            tierBadge.style.backgroundColor = '#E2E8F0';
+            tierBadge.style.color = '#1E293B';
+          } else if (completedOrdersCount >= 5) {
+            tierBadge.innerText = lang === 'ar' ? 'الطبقة البلاتينية 👑' : 'Platinum Tier 👑';
+            tierBadge.style.backgroundColor = '#1E293B';
+            tierBadge.style.color = '#F1F5F9';
+          } else {
+            tierBadge.innerText = lang === 'ar' ? 'الطبقة الذهبية 🌟' : 'Gold Tier 🌟';
+            tierBadge.style.backgroundColor = '#121214';
+            tierBadge.style.color = '#FFC107';
+          }
+        }
 
-      const isActive = o.status !== 'delivered';
-      const buttonHtml = isActive 
-        ? `<button class="btn-track-active" data-id="${o.id}" style="background-color: var(--primary-red); border: none; color: #fff; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
-            <i class="fa-solid fa-map-location-dot"></i>
-            <span>${AppState.selectedLang === 'ar' ? 'تتبع الطلب' : 'Track'}</span>
-          </button>`
-        : `<button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
-            <i class="fa-solid fa-rotate-left"></i>
-            <span>${AppState.selectedLang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
-          </button>`;
+        // Render list
+        historyContainer.innerHTML = '';
+        
+        if (customerOrders.length === 0) {
+          historyContainer.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; background-color: #fff; border-radius: 12px; border: 1px dashed var(--light-border); width: 100%;">
+              <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--light-border); margin-bottom: 8px;"></i>
+              <p style="font-size: 0.75rem;">${lang === 'ar' ? 'لا يوجد لديك طلبات سابقة بعد!' : 'No past orders registered yet!'}</p>
+            </div>
+          `;
+          return;
+        }
 
-      card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--light-border); padding-bottom: 6px; direction: ltr;">
-          <span style="font-weight: 800; color: var(--primary-red); font-size: 0.8rem;">${o.id}</span>
-          <span style="font-size: 0.7rem; color: var(--text-muted);">${o.timestamp}</span>
-        </div>
-        <p style="font-size: 0.7rem; color: var(--text-dark); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px;"><strong>الوجبات:</strong> ${itemsSummary}</p>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; direction: ltr;">
-          <span style="font-weight: 800; font-size: 0.85rem; color: var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</span>
-          ${buttonHtml}
-        </div>
-      `;
-      historyContainer.appendChild(card);
-    });
+        // Render reverse chronological history
+        customerOrders.forEach(o => {
+          try {
+            if (!o) return;
+            const card = document.createElement('div');
+            card.className = 'history-order-card';
+            card.style.backgroundColor = '#fff';
+            card.style.border = '1px solid rgba(0,0,0,0.03)';
+            card.style.borderRadius = '12px';
+            card.style.padding = '12px';
+            card.style.width = '100%';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+            card.style.gap = '6px';
+            card.style.textAlign = 'right';
 
-    // Attach Reorder action buttons
-    historyContainer.querySelectorAll('.btn-reorder').forEach(btn => {
-      btn.addEventListener('click', () => {
-        AudioSynthesizer.playBeep();
-        const orderId = btn.getAttribute('data-id');
-        const targetOrder = customerOrders.find(o => o.id === orderId);
-        if (targetOrder) {
-          // Clear current active cart
-          AppState.cart = [];
-          // Add items back into cart
-          targetOrder.items.forEach(itm => {
-            AppState.cart.push({
-              id: itm.id,
-              qty: itm.qty
-            });
+            const itemsArr = Array.isArray(o.items) ? o.items : [];
+            const itemsSummary = itemsArr.map(itm => {
+              const name = lang === 'ar' ? (itm.nameAr || '') : (itm.nameEn || '');
+              return `${itm.qty || 1}x ${name}`;
+            }).join(' ، ');
+
+            const isActive = o.status !== 'delivered';
+            const buttonHtml = isActive 
+              ? `<button class="btn-track-active" data-id="${o.id}" style="background-color: var(--primary-red); border: none; color: #fff; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
+                  <i class="fa-solid fa-map-location-dot"></i>
+                  <span>${lang === 'ar' ? 'تتبع الطلب' : 'Track'}</span>
+                </button>`
+              : `<button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
+                  <i class="fa-solid fa-rotate-left"></i>
+                  <span>${lang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
+                </button>`;
+
+            const displayId = o.id || '';
+            const displayTimestamp = o.timestamp || '';
+            const displayTotal = typeof o.total === 'number' ? o.total : (Number(o.total) || 0);
+
+            card.innerHTML = `
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--light-border); padding-bottom: 6px; direction: ltr;">
+                <span style="font-weight: 800; color: var(--primary-red); font-size: 0.8rem;">${displayId}</span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">${displayTimestamp}</span>
+              </div>
+              <p style="font-size: 0.7rem; color: var(--text-dark); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px;"><strong>الوجبات:</strong> ${itemsSummary}</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; direction: ltr;">
+                <span style="font-weight: 800; font-size: 0.85rem; color: var(--primary-red);">${displayTotal.toFixed(2)} ${(L && L.sar) || 'ر.س'}</span>
+                ${buttonHtml}
+              </div>
+            `;
+            historyContainer.appendChild(card);
+          } catch (innerErr) {
+            console.error("Error rendering single order card in profile:", innerErr, o);
+          }
+        });
+
+        // Attach Reorder action buttons
+        historyContainer.querySelectorAll('.btn-reorder').forEach(btn => {
+          btn.addEventListener('click', () => {
+            AudioSynthesizer.playBeep();
+            const orderId = btn.getAttribute('data-id');
+            const targetOrder = customerOrders.find(o => o && o.id === orderId);
+            if (targetOrder) {
+              AppState.cart = [];
+              const itemsArr = Array.isArray(targetOrder.items) ? targetOrder.items : [];
+              itemsArr.forEach(itm => {
+                AppState.cart.push({
+                  id: itm.id,
+                  qty: itm.qty
+                });
+              });
+              
+              showToastNotification(
+                lang === 'ar'
+                  ? 'تمت إضافة جميع عناصر الوجبة السابقة لسلتك!'
+                  : 'Reordered! All items added to your cart!',
+                'ready'
+              );
+              
+              renderCartSummary();
+              renderMenuCatalog();
+              switchMobileScreen('mobile-cart');
+            }
           });
-          
-          showToastNotification(
-            AppState.selectedLang === 'ar'
-              ? 'تمت إضافة جميع عناصر الوجبة السابقة لسلتك!'
-              : 'Reordered! All items added to your cart!',
-            'ready'
-          );
-          
-          renderCartSummary();
-          renderMenuCatalog();
-          switchMobileScreen('mobile-cart');
-        }
-      });
-    });
+        });
 
-    // Attach Track action buttons
-    historyContainer.querySelectorAll('.btn-track-active').forEach(btn => {
-      btn.addEventListener('click', () => {
-        AudioSynthesizer.playBeep();
-        const orderId = btn.getAttribute('data-id');
-        const targetOrder = customerOrders.find(o => o.id === orderId);
-        if (targetOrder) {
-          AppState.activeOrderId = targetOrder.id;
-          saveToLocalStorage();
-          updateLiveTrackingUI(targetOrder);
-          switchMobileScreen('mobile-tracking');
-        }
-      });
-    });
-  };
+        // Attach Track action buttons
+        historyContainer.querySelectorAll('.btn-track-active').forEach(btn => {
+          btn.addEventListener('click', () => {
+            AudioSynthesizer.playBeep();
+            const orderId = btn.getAttribute('data-id');
+            const targetOrder = customerOrders.find(o => o && o.id === orderId);
+            if (targetOrder) {
+              AppState.activeOrderId = targetOrder.id;
+              saveToLocalStorage();
+              updateLiveTrackingUI(targetOrder);
+              switchMobileScreen('mobile-tracking');
+            }
+          });
+        });
+      } catch (errUI) {
+        console.error("Error in renderHistoryUI rendering loop:", errUI);
+      }
+    };
 
-  if (supabaseClient && AppState.customerId) {
-    supabaseClient
-      .from('orders')
-      .select(`
-        id,
-        status,
-        subtotal,
-        tax,
-        total,
-        notes,
-        delivery_type,
-        payment_method,
-        pending_update,
-        audit_log,
-        created_at,
-        customers ( id, name, phone ),
-        tables ( id, table_number ),
-        order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
-      `)
-      .eq('customer_id', AppState.customerId)
-      .order('created_at', { ascending: false })
-      .then(res => {
-        if (res.data) {
-          const fetchedOrders = res.data.map(o => {
-            const items = (o.order_items || []).map(item => {
+    if (supabaseClient && AppState.customerId && AppState.customerId !== "null" && AppState.customerId !== "undefined") {
+      console.log("Fetching orders from Supabase for customer_id:", AppState.customerId);
+      supabaseClient
+        .from('orders')
+        .select(`
+          id,
+          status,
+          subtotal,
+          tax,
+          total,
+          notes,
+          delivery_type,
+          payment_method,
+          pending_update,
+          audit_log,
+          created_at,
+          customers ( id, name, phone ),
+          tables ( id, table_number ),
+          order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
+        `)
+        .eq('customer_id', AppState.customerId)
+        .order('created_at', { ascending: false })
+        .then(res => {
+          if (res.error) {
+            console.warn("Supabase profile history fetch returned error:", res.error);
+            renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+            return;
+          }
+          if (res.data) {
+            const fetchedOrders = res.data.map(o => {
+              const items = (o.order_items || []).map(item => {
+                return {
+                  id: item.product_id,
+                  nameAr: item.products ? item.products.name_ar : '',
+                  nameEn: item.products ? item.products.name_en : '',
+                  qty: item.quantity,
+                  price: Number(item.price)
+                };
+              });
+
               return {
-                id: item.product_id,
-                nameAr: item.products ? item.products.name_ar : '',
-                nameEn: item.products ? item.products.name_en : '',
-                qty: item.quantity,
-                price: Number(item.price)
+                id: o.id,
+                table: o.tables ? o.tables.table_number : 0,
+                name: o.customers ? o.customers.name : '',
+                phone: o.customers ? o.customers.phone : '',
+                items: items,
+                subtotal: Number(o.subtotal),
+                tax: Number(o.tax),
+                total: Number(o.total),
+                notes: o.notes,
+                type: o.delivery_type,
+                status: o.status,
+                paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
+                paymentMethod: o.payment_method,
+                pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+                auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+                timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+                elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
               };
             });
-
-            return {
-              id: o.id,
-              table: o.tables ? o.tables.table_number : 0,
-              name: o.customers ? o.customers.name : '',
-              phone: o.customers ? o.customers.phone : '',
-              items: items,
-              subtotal: Number(o.subtotal),
-              tax: Number(o.tax),
-              total: Number(o.total),
-              notes: o.notes,
-              type: o.delivery_type,
-              status: o.status,
-              paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
-              paymentMethod: o.payment_method,
-              pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-              auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-              timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-              elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
-            };
-          });
-          renderHistoryUI(fetchedOrders);
-        } else {
-          renderHistoryUI([]);
-        }
-      })
-      .catch(err => {
-        console.warn("Profiles history fetch failed, using memory:", err);
-        renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
-      });
-  } else {
-    renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+            renderHistoryUI(fetchedOrders);
+          } else {
+            renderHistoryUI([]);
+          }
+        })
+        .catch(err => {
+          console.warn("Profiles history fetch failed, using memory:", err);
+          renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+        });
+    } else {
+      console.log("No valid Supabase customer_id found, using memory fallback...");
+      renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+    }
+  } catch (globalErr) {
+    console.error("Critical error in renderCustomerProfileScreen:", globalErr);
   }
 }
 
