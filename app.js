@@ -1143,6 +1143,18 @@ function renderCartSummary() {
 function triggerPlaceOrder() {
   if (AppState.cart.length === 0) return;
 
+  // Block placing a new order if they already have an active order
+  const activeOrder = AppState.orders.find(o => o.phone === AppState.phoneNumber && o.status !== 'delivered');
+  if (activeOrder) {
+    showToastNotification(
+      AppState.selectedLang === 'ar'
+        ? `لديك طلب نشط بالفعل (${activeOrder.id})! لا يمكنك تقديم طلب جديد حتى يتم تسليم طلبك الحالي.`
+        : `You already have an active order (${activeOrder.id})! You cannot place a new order until your current order is delivered.`,
+      'new'
+    );
+    return;
+  }
+
   if (AppState.editingOrderId) {
     triggerSaveOrderEdits();
     return;
@@ -2567,6 +2579,19 @@ function renderCustomerProfileScreen() {
         historyContainer.querySelectorAll('.btn-reorder').forEach(btn => {
           btn.addEventListener('click', () => {
             AudioSynthesizer.playBeep();
+            
+            // Block reordering if they already have an active order
+            const activeOrder = AppState.orders.find(o => o && o.phone === AppState.phoneNumber && o.status !== 'delivered');
+            if (activeOrder) {
+              showToastNotification(
+                lang === 'ar'
+                  ? `لديك طلب نشط بالفعل (${activeOrder.id})! لا يمكنك إعادة الطلب حتى يتم تسليم طلبك الحالي.`
+                  : `You already have an active order (${activeOrder.id})! You cannot reorder until your current order is delivered.`,
+                'new'
+              );
+              return;
+            }
+
             const orderId = btn.getAttribute('data-id');
             const targetOrder = customerOrders.find(o => o && o.id === orderId);
             if (targetOrder) {
@@ -3526,6 +3551,19 @@ function initCustomerView() {
   if (btnNewOrder) {
     btnNewOrder.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
+      
+      // Block starting a new order if they already have an active order
+      const activeOrder = AppState.orders.find(o => o && o.phone === AppState.phoneNumber && o.status !== 'delivered');
+      if (activeOrder) {
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? `لديك طلب نشط بالفعل (${activeOrder.id})! لا يمكنك بدء طلب جديد حتى يتم تسليم طلبك الحالي.`
+            : `You already have an active order (${activeOrder.id})! You cannot start a new order until your current order is delivered.`,
+          'new'
+        );
+        return;
+      }
+
       AppState.activeOrderId = null;
       saveToLocalStorage();
       
