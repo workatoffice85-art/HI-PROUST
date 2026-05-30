@@ -1709,6 +1709,22 @@ main {
   color: var(--color-completed);
 }
 
+.badge-status.pending_payment {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--color-prep);
+}
+
+.badge-status.paid {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--color-new);
+}
+
+.badge-status.delivered {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: var(--color-completed);
+}
+
+
 .badge-pay {
   padding: 3px 6px;
   border-radius: 4px;

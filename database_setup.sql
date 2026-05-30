@@ -172,6 +172,100 @@ ON public.profiles
 FOR ALL
 USING (true)
 WITH CHECK (true);
+-- ==========================================================================
+-- 9. PRODUCTION-LEVEL RELATIONAL DATABASE SCHEMA REFAC
+-- ==========================================================================
 
+-- Enable extension for generating UUIDs if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Drop old tables if they conflict (in correct dependency order)
+DROP TABLE IF EXISTS public.order_items CASCADE;
+DROP TABLE IF EXISTS public.orders CASCADE;
+DROP TABLE IF EXISTS public.tables CASCADE;
+DROP TABLE IF EXISTS public.customers CASCADE;
 
+-- A. Create customers table
+CREATE TABLE public.customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  phone TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- B. Create tables table
+CREATE TABLE public.tables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_number INT UNIQUE NOT NULL,
+  qr_code TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- C. Create orders table
+CREATE TABLE public.orders (
+  id TEXT PRIMARY KEY, -- Unique order code (e.g. P101, P102)
+  customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  table_id UUID REFERENCES public.tables(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'pending_payment'::text NOT NULL, -- pending_payment, paid, preparing, ready, delivered
+  subtotal NUMERIC(10, 2) NOT NULL,
+  tax NUMERIC(10, 2) NOT NULL,
+  total NUMERIC(10, 2) NOT NULL,
+  notes TEXT,
+  delivery_type TEXT NOT NULL, -- 'dine-in' or 'takeaway'
+  payment_method TEXT, -- 'cash', 'mada', 'apple' (nullable until paid)
+  pending_update JSONB DEFAULT NULL,
+  audit_log JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- D. Create order_items table
+CREATE TABLE public.order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id TEXT REFERENCES public.orders(id) ON DELETE CASCADE,
+  product_id TEXT REFERENCES public.products(id) ON DELETE RESTRICT,
+  quantity INT NOT NULL,
+  price NUMERIC(10, 2) NOT NULL
+);
+
+-- Enable RLS
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+-- Allow all public operations for rapid prototyping
+DROP POLICY IF EXISTS "Allow all public customer operations" ON public.customers;
+CREATE POLICY "Allow all public customer operations" ON public.customers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all public table operations" ON public.tables;
+CREATE POLICY "Allow all public table operations" ON public.tables FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all public order operations" ON public.orders;
+CREATE POLICY "Allow all public order operations" ON public.orders FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all public order_item operations" ON public.order_items;
+CREATE POLICY "Allow all public order_item operations" ON public.order_items FOR ALL USING (true) WITH CHECK (true);
+
+-- Seed default tables 1 to 12
+INSERT INTO public.tables (table_number, qr_code)
+VALUES 
+  (1, 'http://localhost:5000/?table=1'),
+  (2, 'http://localhost:5000/?table=2'),
+  (3, 'http://localhost:5000/?table=3'),
+  (4, 'http://localhost:5000/?table=4'),
+  (5, 'http://localhost:5000/?table=5'),
+  (6, 'http://localhost:5000/?table=6'),
+  (7, 'http://localhost:5000/?table=7'),
+  (8, 'http://localhost:5000/?table=8'),
+  (9, 'http://localhost:5000/?table=9'),
+  (10, 'http://localhost:5000/?table=10'),
+  (11, 'http://localhost:5000/?table=11'),
+  (12, 'http://localhost:5000/?table=12')
+ON CONFLICT (table_number) DO NOTHING;
+
+-- Enable Realtime for orders and order_items
+ALTER publication supabase_realtime ADD TABLE public.orders;
+ALTER publication supabase_realtime ADD TABLE public.order_items;
+ALTER publication supabase_realtime ADD TABLE public.customers;
+
+NOTIFY pgrst, 'reload schema';
