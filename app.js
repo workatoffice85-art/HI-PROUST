@@ -2334,12 +2334,25 @@ function renderAdminMenuManage() {
       tr.innerHTML = `
         <td style="font-weight: 700; color: var(--text-light);">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
         <td style="text-align: center;">
-          <button class="sim-btn delete-cat-btn" data-id="${cat.id}" style="background-color: rgba(239, 68, 68, 0.1); border-color: var(--color-new); color: var(--color-new); padding: 4px 8px; font-size: 0.7rem;">
-            <i class="fa-solid fa-trash"></i>
-          </button>
+          <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+            <button class="sim-btn edit-cat-btn" data-id="${cat.id}" style="padding: 4px 10px; font-size: 0.7rem; background-color: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark); font-weight: 800; border-radius: 6px;">
+              <i class="fa-solid fa-pen-to-square"></i> تعديل
+            </button>
+            <button class="sim-btn delete-cat-btn" data-id="${cat.id}" style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid var(--color-new); color: var(--color-new); padding: 4px 10px; font-size: 0.7rem; font-weight: 800; border-radius: 6px;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
         </td>
       `;
       categoriesListBody.appendChild(tr);
+    });
+
+    categoriesListBody.querySelectorAll('.edit-cat-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        openCategoryEditor(id);
+      });
     });
 
     categoriesListBody.querySelectorAll('.delete-cat-btn').forEach(btn => {
@@ -2533,6 +2546,41 @@ async function deleteProduct(productId) {
     const menuContainer = document.getElementById('menu-catalog');
     if (menuContainer) renderMenuCatalog();
   }
+}
+
+function openCategoryEditor(catId) {
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return;
+
+  const modal = document.getElementById('modal-category-editor');
+  if (!modal) return;
+
+  // Set modal title
+  const modalTitle = modal.querySelector('h3');
+  if (modalTitle) {
+    modalTitle.innerHTML = `<i class="fa-solid fa-folder-tree"></i> ` + (AppState.selectedLang === 'ar' ? 'تعديل قسم المنيو' : 'Edit Menu Category');
+  }
+
+  // Set input values
+  const inputId = document.getElementById('edit-cat-id');
+  if (inputId) {
+    inputId.value = cat.id;
+    inputId.disabled = true; // Category ID shouldn't be edited to preserve product mapping!
+    inputId.style.opacity = '0.6';
+    inputId.style.cursor = 'not-allowed';
+  }
+
+  document.getElementById('edit-cat-name-ar').value = cat.nameAr;
+  document.getElementById('edit-cat-name-en').value = cat.nameEn;
+
+  // Set submit button text
+  const submitBtn = modal.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ` + (AppState.selectedLang === 'ar' ? 'حفظ التعديلات وتحديث القسم' : 'Save Category Changes');
+  }
+
+  modal.style.display = 'flex';
+  modal.classList.add('active');
 }
 
 async function deleteCategory(catId) {
@@ -2947,12 +2995,36 @@ function initAdminView() {
   if (btnAddCat) {
     btnAddCat.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      document.getElementById('edit-cat-id').value = '';
-      document.getElementById('edit-cat-name-ar').value = '';
-      document.getElementById('edit-cat-name-en').value = '';
-      const catModal = document.getElementById('modal-category-editor');
-      catModal.style.display = 'flex';
-      catModal.classList.add('active');
+      
+      const modal = document.getElementById('modal-category-editor');
+      if (modal) {
+        // Reset title
+        const modalTitle = modal.querySelector('h3');
+        if (modalTitle) {
+          modalTitle.innerHTML = `<i class="fa-solid fa-folder-tree"></i> ` + (AppState.selectedLang === 'ar' ? 'إضافة قسم منيو جديد' : 'Add New Category');
+        }
+
+        // Enable and reset ID input
+        const inputId = document.getElementById('edit-cat-id');
+        if (inputId) {
+          inputId.value = '';
+          inputId.disabled = false;
+          inputId.style.opacity = '1';
+          inputId.style.cursor = 'text';
+        }
+
+        document.getElementById('edit-cat-name-ar').value = '';
+        document.getElementById('edit-cat-name-en').value = '';
+
+        // Reset submit button text
+        const submitBtn = modal.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ` + (AppState.selectedLang === 'ar' ? 'إضافة هذا القسم للمطعم' : 'Add Category');
+        }
+
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+      }
     });
   }
 
@@ -3006,11 +3078,22 @@ function initAdminView() {
       const catModal = document.getElementById('modal-category-editor');
       catModal.style.display = 'none';
       catModal.classList.remove('active');
+      
+      const isEdit = (existingIdx > -1);
       showToastNotification(
-        AppState.selectedLang === 'ar' ? 'تمت إضافة قسم المنيو الجديد بنجاح!' : 'Category added successfully!',
+        AppState.selectedLang === 'ar' 
+          ? (isEdit ? 'تم تحديث قسم المنيو بنجاح!' : 'تمت إضافة قسم المنيو الجديد بنجاح!')
+          : (isEdit ? 'Category updated successfully!' : 'Category added successfully!'),
         'ready'
       );
+      
       renderAdminMenuManage();
+
+      // Instantly trigger reactive updates for customer menus
+      const catContainer = document.getElementById('categories-scroll');
+      if (catContainer) renderMenuCategories();
+      const menuContainer = document.getElementById('menu-catalog');
+      if (menuContainer) renderMenuCatalog();
     });
   }
 
