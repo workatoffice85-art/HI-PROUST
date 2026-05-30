@@ -295,6 +295,7 @@ const AppState = {
   staticDataLoaded: false,
   
   // Customer Details
+  customerId: null,
   phoneNumber: '',
   customerName: '',
   cart: [], // Array of { id, qty }
@@ -305,6 +306,8 @@ const AppState = {
 
   // Unified Live Queue of Orders
   orders: [],
+  tables: [],
+  tablesLoaded: false,
   
   // Cached DOM query elements
   elements: {}
@@ -318,6 +321,7 @@ function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_PHONE_NUMBER', AppState.phoneNumber || '');
   localStorage.setItem('HIPROUST_SELECTED_TABLE', AppState.selectedTable || 1);
   localStorage.setItem('HIPROUST_DELIVERY_TYPE', AppState.deliveryType || 'dine-in');
+  localStorage.setItem('HIPROUST_CUSTOMER_ID', AppState.customerId || '');
   
   if (AppState.phoneNumber && AppState.customerName) {
     let profiles = {};
@@ -343,6 +347,7 @@ async function loadFromLocalStorage() {
   AppState.activeOrderId = localStorage.getItem('HIPROUST_ACTIVE_ORDER_ID') || null;
   AppState.customerName = localStorage.getItem('HIPROUST_CUSTOMER_NAME') || '';
   AppState.phoneNumber = localStorage.getItem('HIPROUST_PHONE_NUMBER') || '';
+  AppState.customerId = localStorage.getItem('HIPROUST_CUSTOMER_ID') || null;
   
   const storedTable = localStorage.getItem('HIPROUST_SELECTED_TABLE');
   if (storedTable) {
@@ -375,6 +380,19 @@ async function loadFromLocalStorage() {
         }
       } catch (err) {
         console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
+      }
+      
+      // 0.1 Fetch Physical Tables
+      try {
+        const { data: tablesData } = await supabaseClient
+          .from('tables')
+          .select('*');
+        if (tablesData) {
+          AppState.tables = tablesData;
+          AppState.tablesLoaded = true;
+        }
+      } catch (err) {
+        console.warn("Supabase tables fetch error:", err);
       }
       // A. Fetch Categories
       try {
@@ -424,33 +442,60 @@ async function loadFromLocalStorage() {
       AppState.staticDataLoaded = true;
     }
 
-    // C. Fetch Orders
+    // C. Fetch Orders (Joined query for relational schema)
     try {
       const { data, error } = await supabaseClient
         .from('orders')
-        .select('*')
+        .select(`
+          id,
+          status,
+          subtotal,
+          tax,
+          total,
+          notes,
+          delivery_type,
+          payment_method,
+          pending_update,
+          audit_log,
+          created_at,
+          customers ( id, name, phone ),
+          tables ( id, table_number ),
+          order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
+        `)
         .order('created_at', { ascending: true });
         
       if (data) {
-        const dbOrders = data.map(o => ({
-          id: o.id,
-          table: o.table_number,
-          name: o.customer_name,
-          phone: o.phone_number,
-          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-          subtotal: Number(o.subtotal),
-          tax: Number(o.tax),
-          total: Number(o.total),
-          notes: o.notes,
-          type: o.delivery_type,
-          status: o.status,
-          paymentStatus: o.payment_status,
-          paymentMethod: o.payment_method,
-          pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-          auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-          timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-          elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
-        }));
+        const dbOrders = data.map(o => {
+          const items = (o.order_items || []).map(item => {
+            return {
+              id: item.product_id,
+              nameAr: item.products ? item.products.name_ar : '',
+              nameEn: item.products ? item.products.name_en : '',
+              qty: item.quantity,
+              price: Number(item.price)
+            };
+          });
+
+          return {
+            id: o.id,
+            table: o.tables ? o.tables.table_number : 0,
+            name: o.customers ? o.customers.name : '',
+            phone: o.customers ? o.customers.phone : '',
+            items: items,
+            subtotal: Number(o.subtotal),
+            tax: Number(o.tax),
+            total: Number(o.total),
+            notes: o.notes,
+            type: o.delivery_type,
+            status: o.status,
+            paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
+            paymentMethod: o.payment_method,
+            pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+            auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+            timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+            elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+          };
+        });
 
         // Preserve our local active order if it is not returned by the database yet!
         const localActiveOrder = AppState.activeOrderId ? AppState.orders.find(o => o.id === AppState.activeOrderId) : null;
@@ -1120,7 +1165,7 @@ function triggerPlaceOrder() {
     total: total,
     notes: notes,
     type: AppState.deliveryType,
-    status: 'new', // 'new' | 'preparing' | 'ready' | 'completed'
+    status: 'pending_payment', // initially pending_payment as per flow!
     paymentStatus: 'unpaid', // 'unpaid' | 'paid'
     paymentMethod: null,
     timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -1132,24 +1177,47 @@ function triggerPlaceOrder() {
   AppState.activeOrderId = orderId;
   saveToLocalStorage();
 
-  // Cloud Sync (Supabase Insert)
+  // Cloud Sync (Supabase Relational Inserts)
   if (supabaseClient) {
-    supabaseClient.from('orders').insert({
+    let tableUuid = null;
+    if (AppState.deliveryType === 'dine-in' && AppState.tables && AppState.tables.length > 0) {
+      const matchedTable = AppState.tables.find(t => t.table_number === AppState.selectedTable);
+      if (matchedTable) {
+        tableUuid = matchedTable.id;
+      }
+    }
+
+    const orderPayload = {
       id: newOrder.id,
-      table_number: newOrder.table,
-      customer_name: newOrder.name,
-      phone_number: newOrder.phone,
-      items: newOrder.items,
+      customer_id: AppState.customerId,
+      table_id: tableUuid,
+      status: 'pending_payment',
       subtotal: newOrder.subtotal,
       tax: newOrder.tax,
       total: newOrder.total,
       notes: newOrder.notes,
       delivery_type: newOrder.type,
-      status: newOrder.status,
-      payment_status: newOrder.paymentStatus,
-      payment_method: newOrder.paymentMethod
-    }).then(res => {
+      payment_method: null,
+      pending_update: null,
+      audit_log: []
+    };
+
+    supabaseClient.from('orders').insert(orderPayload).then(res => {
       console.log('Order persisted to Supabase:', res);
+      
+      const itemsPayload = AppState.cart.map(c => {
+        const menuItem = MENU.find(m => m.id === c.id);
+        return {
+          order_id: newOrder.id,
+          product_id: c.id,
+          quantity: c.qty,
+          price: menuItem.price
+        };
+      });
+
+      supabaseClient.from('order_items').insert(itemsPayload).then(itemsRes => {
+        console.log('Order items persisted to Supabase:', itemsRes);
+      });
     });
   }
 
@@ -1227,21 +1295,52 @@ function triggerSaveOrderEdits() {
 
     // Cloud Sync (Supabase Update)
     if (supabaseClient) {
+      let tableUuid = null;
+      if (activeOrder.type === 'dine-in' && AppState.tables && AppState.tables.length > 0) {
+        const matchedTable = AppState.tables.find(t => t.table_number === activeOrder.table);
+        if (matchedTable) {
+          tableUuid = matchedTable.id;
+        }
+      }
+
       supabaseClient
         .from('orders')
         .update({
-          items: activeOrder.items,
           subtotal: activeOrder.subtotal,
           tax: activeOrder.tax,
           total: activeOrder.total,
           notes: activeOrder.notes,
           delivery_type: activeOrder.type,
-          table_number: activeOrder.table,
+          table_id: tableUuid,
           audit_log: activeOrder.auditLog
         })
         .eq('id', orderId)
         .then(res => {
           console.log('Order changes persisted to Supabase directly:', res);
+          
+          // Overwrite order items in order_items table
+          supabaseClient
+            .from('order_items')
+            .delete()
+            .eq('order_id', orderId)
+            .then(() => {
+              const itemsPayload = AppState.cart.map(c => {
+                const menuItem = MENU.find(m => m.id === c.id);
+                return {
+                  order_id: orderId,
+                  product_id: c.id,
+                  quantity: c.qty,
+                  price: menuItem.price
+                };
+              });
+
+              supabaseClient
+                .from('order_items')
+                .insert(itemsPayload)
+                .then(itemsRes => {
+                  console.log('Edited order items persisted to Supabase:', itemsRes);
+                });
+            });
         });
     }
 
@@ -1409,11 +1508,11 @@ function updateLiveTrackingUI(order) {
   // Set Success circle icon
   const successBadge = document.getElementById('tracking-success-badge');
 
-  if (order.status === 'new') {
+  if (order.status === 'pending_payment' || order.status === 'paid') {
     stepPlaced.classList.add('active');
     successBadge.innerHTML = `<i class="fa-solid fa-receipt"></i>`;
     successBadge.style.backgroundColor = 'var(--color-completed)';
-    if (order.paymentStatus !== 'paid') {
+    if (order.status === 'pending_payment') {
       document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? 'بانتظار تحصيل الفاتورة عند الكاشير ⏳' : 'Waiting for payment at cashier ⏳';
     } else {
       document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? '١٢-١٨ دقيقة' : '12-18 mins';
@@ -1432,7 +1531,7 @@ function updateLiveTrackingUI(order) {
     successBadge.style.backgroundColor = 'var(--color-ready)';
     successBadge.style.animation = 'bounce 1s infinite';
     document.getElementById('track-timer').innerText = AppState.selectedLang === 'ar' ? 'الطلب جاهز للتسليم!' : 'Ready for pickup!';
-  } else if (order.status === 'completed') {
+  } else if (order.status === 'delivered') { // delivered replaces completed!
     stepPlaced.classList.add('completed');
     stepCook.classList.add('completed');
     stepReady.classList.add('completed');
@@ -1452,6 +1551,8 @@ function renderKDSBoard() {
   const stackPrep = document.getElementById('kds-stack-prep');
   const stackReady = document.getElementById('kds-stack-ready');
 
+  if (!stackNew || !stackPrep || !stackReady) return;
+
   stackNew.innerHTML = '';
   stackPrep.innerHTML = '';
   stackReady.innerHTML = '';
@@ -1461,10 +1562,10 @@ function renderKDSBoard() {
   let countReady = 0;
 
   AppState.orders.forEach(order => {
-    if (order.status === 'completed') return; // Completed orders are archived from the KDS board
+    if (order.status === 'delivered') return; // Delivered orders are archived from the KDS board
     
     // New Workflow Constraint: Orders MUST be approved/paid by cashier before reaching the kitchen!
-    if (order.paymentStatus !== 'paid') return;
+    if (order.status === 'pending_payment') return;
 
     const card = document.createElement('div');
     card.className = `kds-card ${order.status}-order`;
@@ -1474,9 +1575,7 @@ function renderKDSBoard() {
       ? (AppState.selectedLang === 'ar' ? `محلي - طاولة ${order.table}` : `Dine-in - Table ${order.table}`)
       : (AppState.selectedLang === 'ar' ? 'سفري - كرتون' : 'Takeaway - Box');
 
-    const paymentLabel = order.paymentStatus === 'paid'
-      ? `<span class="badge-pay paid" style="font-size: 0.65rem;">${AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid'}</span>`
-      : `<span class="badge-pay unpaid" style="font-size: 0.65rem;">${AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid'}</span>`;
+    const paymentLabel = `<span class="badge-pay paid" style="font-size: 0.65rem;">${AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid'}</span>`;
 
     // Render items list lines
     let itemsHtml = '';
@@ -1505,7 +1604,7 @@ function renderKDSBoard() {
 
     // Action button based on status
     let actionBtn = '';
-    if (order.status === 'new') {
+    if (order.status === 'paid') {
       countNew++;
       actionBtn = `<button class="kds-action-btn start" data-id="${order.id}">${AppState.selectedLang === 'ar' ? 'بدء التحضير' : 'Start Prep'}</button>`;
     } else if (order.status === 'preparing') {
@@ -1541,7 +1640,7 @@ function renderKDSBoard() {
     `;
 
     // Append to correct column
-    if (order.status === 'new') {
+    if (order.status === 'paid') {
       stackNew.appendChild(card);
     } else if (order.status === 'preparing') {
       stackPrep.appendChild(card);
@@ -1559,13 +1658,19 @@ function renderKDSBoard() {
   });
 
   // Render top headers count badges
-  document.getElementById('kds-count-new').innerText = countNew;
-  document.getElementById('kds-count-prep').innerText = countPrep;
-  document.getElementById('kds-count-ready').innerText = countReady;
+  const cntNew = document.getElementById('kds-count-new');
+  if (cntNew) cntNew.innerText = countNew;
+  const cntPrep = document.getElementById('kds-count-prep');
+  if (cntPrep) cntPrep.innerText = countPrep;
+  const cntReady = document.getElementById('kds-count-ready');
+  if (cntReady) cntReady.innerText = countReady;
 
-  document.getElementById('kds-col-new-count').innerText = countNew;
-  document.getElementById('kds-col-prep-count').innerText = countPrep;
-  document.getElementById('kds-col-ready-count').innerText = countReady;
+  const colNew = document.getElementById('kds-col-new-count');
+  if (colNew) colNew.innerText = countNew;
+  const colPrep = document.getElementById('kds-col-prep-count');
+  if (colPrep) colPrep.innerText = countPrep;
+  const colReady = document.getElementById('kds-col-ready-count');
+  if (colReady) colReady.innerText = countReady;
 }
 
 function advanceOrderStatus(orderId) {
@@ -1576,7 +1681,7 @@ function advanceOrderStatus(orderId) {
     ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
     : (AppState.selectedLang === 'ar' ? 'النظام' : 'System');
 
-  if (order.status === 'new') {
+  if (order.status === 'paid') {
     order.status = 'preparing';
     if (typeof addAuditLog === 'function') {
       addAuditLog(order, AppState.selectedLang === 'ar' ? `بدء التحضير بواسطة ${staffName}` : `Started prep by ${staffName}`);
@@ -1595,7 +1700,7 @@ function advanceOrderStatus(orderId) {
       'ready'
     );
   } else if (order.status === 'ready') {
-    order.status = 'completed';
+    order.status = 'delivered'; // transition to delivered!
     if (typeof addAuditLog === 'function') {
       addAuditLog(order, AppState.selectedLang === 'ar' ? `تم التسليم والإغلاق بواسطة ${staffName}` : `Served by ${staffName}`);
     }
@@ -1636,7 +1741,7 @@ function advanceOrderStatus(orderId) {
 // Cooking timers incrementer loop (every 1 second)
 setInterval(() => {
   AppState.orders.forEach(order => {
-    if (order.status !== 'completed') {
+    if (order.status !== 'delivered') {
       order.elapsedSeconds++;
     }
   });
@@ -1981,22 +2086,52 @@ function renderCashierCheckoutSidebar() {
       
       // Sync with Supabase
       if (supabaseClient) {
+        let tableUuid = null;
+        if (selectedOrderForCheckout.type === 'dine-in' && AppState.tables && AppState.tables.length > 0) {
+          const matchedTable = AppState.tables.find(t => t.table_number === selectedOrderForCheckout.table);
+          if (matchedTable) {
+            tableUuid = matchedTable.id;
+          }
+        }
+
         supabaseClient
           .from('orders')
           .update({
-            items: selectedOrderForCheckout.items,
             subtotal: selectedOrderForCheckout.subtotal,
             tax: selectedOrderForCheckout.tax,
             total: selectedOrderForCheckout.total,
             notes: selectedOrderForCheckout.notes,
             delivery_type: selectedOrderForCheckout.type,
-            table_number: selectedOrderForCheckout.table,
+            table_id: tableUuid,
             pending_update: null,
             audit_log: selectedOrderForCheckout.auditLog
           })
           .eq('id', selectedOrderForCheckout.id)
           .then(res => {
             console.log('Approved edits synced to Supabase successfully:', res);
+            
+            // Overwrite order items in order_items table
+            supabaseClient
+              .from('order_items')
+              .delete()
+              .eq('order_id', selectedOrderForCheckout.id)
+              .then(() => {
+                const itemsPayload = selectedOrderForCheckout.items.map(itm => {
+                  return {
+                    order_id: selectedOrderForCheckout.id,
+                    product_id: itm.id,
+                    quantity: itm.qty,
+                    price: itm.price
+                  };
+                });
+
+                supabaseClient
+                  .from('order_items')
+                  .insert(itemsPayload)
+                  .then(itemsRes => {
+                    console.log('Approved edits items synced to Supabase:', itemsRes);
+                  });
+              });
           });
       }
       
@@ -2059,6 +2194,7 @@ function processCashierPayment() {
   if (!selectedOrderForCheckout) return;
 
   selectedOrderForCheckout.paymentStatus = 'paid';
+  selectedOrderForCheckout.status = 'paid'; // Set status to paid as per flow!
   selectedOrderForCheckout.paymentMethod = selectedPaymentMethod;
   
   const staffName = AppState.loggedStaff 
@@ -2071,12 +2207,12 @@ function processCashierPayment() {
 
   saveToLocalStorage();
 
-  // Cloud Sync (Supabase Payment Update)
+  // Cloud Sync (Supabase Payment Update to paid status)
   if (supabaseClient) {
     supabaseClient
       .from('orders')
       .update({ 
-        payment_status: selectedOrderForCheckout.paymentStatus, 
+        status: 'paid', 
         payment_method: selectedOrderForCheckout.paymentMethod,
         audit_log: selectedOrderForCheckout.auditLog || []
       })
@@ -2086,8 +2222,8 @@ function processCashierPayment() {
           console.error('Payment update failed in Supabase:', res.error);
           showToastNotification(
             AppState.selectedLang === 'ar' 
-              ? 'خطأ: لم يتم التحديث سحابياً! يرجى تشغيل كود ALTER في Supabase لإضافة عمود audit_log.' 
-              : 'Error: Cloud update failed! Please run ALTER code in Supabase to add audit_log column.',
+              ? 'خطأ: لم يتم التحديث سحابياً!' 
+              : 'Error: Cloud update failed!',
             'new'
           );
         } else {
@@ -3134,130 +3270,82 @@ function initCustomerView() {
       };
 
       const checkOrdersTableFallback = () => {
-        supabaseClient
-          .from('orders')
-          .select('*')
-          .eq('phone_number', currentPhoneDigits)
-          .order('created_at', { ascending: false })
-          .then(res => {
-            btnPhoneSubmit.disabled = false;
-            btnPhoneSubmit.innerHTML = originalHtml;
-
-            if (res.data && res.data.length > 0) {
-              const activeDbOrder = res.data.find(o => o.status !== 'completed');
-
-              if (activeDbOrder) {
-                // Restore active order
-                const o = activeDbOrder;
-                const restoredOrder = {
-                  id: o.id,
-                  table: o.table_number,
-                  name: o.customer_name,
-                  phone: o.phone_number,
-                  items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-                  subtotal: Number(o.subtotal),
-                  tax: Number(o.tax),
-                  total: Number(o.total),
-                  notes: o.notes,
-                  type: o.delivery_type,
-                  status: o.status,
-                  paymentStatus: o.payment_status,
-                  paymentMethod: o.payment_method,
-                  pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-                  auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-                  timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-                  elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
-                };
-
-                AppState.phoneNumber = restoredOrder.phone;
-                AppState.customerName = restoredOrder.name;
-                AppState.activeOrderId = restoredOrder.id;
-
-                const idx = AppState.orders.findIndex(x => x.id === restoredOrder.id);
-                if (idx >= 0) AppState.orders[idx] = restoredOrder;
-                else AppState.orders.push(restoredOrder);
-
-                saveToLocalStorage();
-                updateLiveTrackingUI(restoredOrder);
-                switchMobileScreen('mobile-tracking');
-
-                showToastNotification(
-                  AppState.selectedLang === 'ar'
-                    ? `تم العثور على طلب نشط! جاري الانتقال لصفحة التتبع ⚡`
-                    : `Active order found! Redirecting to live tracking ⚡`,
-                  'ready'
-                );
-              } else {
-                // Profile auto-match
-                const latestOrder = res.data[0];
-                AppState.phoneNumber = currentPhoneDigits;
-                AppState.customerName = latestOrder.customer_name;
-                
-                saveToLocalStorage();
-                
-                showToastNotification(
-                  AppState.selectedLang === 'ar'
-                    ? `مرحباً بعودتك يا ${latestOrder.customer_name}! تم الدخول وتفعيل حسابك 🔥`
-                    : `Welcome back, ${latestOrder.customer_name}! Logged in successfully 🔥`,
-                  'ready'
-                );
-                switchMobileScreen('mobile-menu');
-              }
-            } else {
-              // Completely new guest
-              AppState.phoneNumber = currentPhoneDigits;
-              document.getElementById('name-input').value = "";
-              switchMobileScreen('mobile-name');
-            }
-          })
-          .catch(err => {
-            btnPhoneSubmit.disabled = false;
-            btnPhoneSubmit.innerHTML = originalHtml;
-            localVerificationFallback();
-          });
+        btnPhoneSubmit.disabled = false;
+        btnPhoneSubmit.innerHTML = originalHtml;
+        AppState.phoneNumber = currentPhoneDigits;
+        document.getElementById('name-input').value = "";
+        switchMobileScreen('mobile-name');
       };
 
       if (supabaseClient) {
-        // Query profiles table first
+        // Query customers table (replaces profiles)
         supabaseClient
-          .from('profiles')
+          .from('customers')
           .select('*')
-          .eq('phone_number', currentPhoneDigits)
+          .eq('phone', currentPhoneDigits)
           .single()
           .then(profileRes => {
             if (profileRes.data) {
-              // Profile found in database profiles table!
+              // Customer found in database customers table!
               AppState.phoneNumber = currentPhoneDigits;
-              AppState.customerName = profileRes.data.customer_name;
+              AppState.customerName = profileRes.data.name;
+              AppState.customerId = profileRes.data.id;
               saveToLocalStorage();
 
-              // Fetch if they have any active orders as well in background
+              // Fetch active orders for this customer from database
               supabaseClient
                 .from('orders')
-                .select('*')
-                .eq('phone_number', currentPhoneDigits)
+                .select(`
+                  id,
+                  status,
+                  subtotal,
+                  tax,
+                  total,
+                  notes,
+                  delivery_type,
+                  payment_method,
+                  pending_update,
+                  audit_log,
+                  created_at,
+                  customers ( id, name, phone ),
+                  tables ( id, table_number ),
+                  order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
+                `)
+                .eq('customer_id', AppState.customerId)
                 .order('created_at', { ascending: false })
                 .then(orderRes => {
                   btnPhoneSubmit.disabled = false;
                   btnPhoneSubmit.innerHTML = originalHtml;
 
                   if (orderRes.data && orderRes.data.length > 0) {
-                    const activeDbOrder = orderRes.data.find(o => o.status !== 'completed');
+                    const activeDbOrder = orderRes.data.find(o => o.status !== 'delivered');
                     if (activeDbOrder) {
                       const o = activeDbOrder;
+                      
+                      // Map items from order_items table
+                      const items = (o.order_items || []).map(item => {
+                        return {
+                          id: item.product_id,
+                          nameAr: item.products ? item.products.name_ar : '',
+                          nameEn: item.products ? item.products.name_en : '',
+                          qty: item.quantity,
+                          price: Number(item.price)
+                        };
+                      });
+
                       const restoredOrder = {
                         id: o.id,
-                        table: o.table_number,
-                        name: o.customer_name,
-                        phone: o.phone_number,
-                        items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+                        table: o.tables ? o.tables.table_number : 0,
+                        name: o.customers ? o.customers.name : '',
+                        phone: o.customers ? o.customers.phone : '',
+                        items: items,
                         subtotal: Number(o.subtotal),
                         tax: Number(o.tax),
                         total: Number(o.total),
                         notes: o.notes,
                         type: o.delivery_type,
                         status: o.status,
-                        paymentStatus: o.payment_status,
+                        paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
                         paymentMethod: o.payment_method,
                         pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
                         auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
@@ -3295,17 +3383,17 @@ function initCustomerView() {
 
               showToastNotification(
                 AppState.selectedLang === 'ar'
-                  ? `مرحباً بعودتك يا ${profileRes.data.customer_name}! تم الدخول بنجاح 🔥`
-                  : `Welcome back, ${profileRes.data.customer_name}! Logged in successfully 🔥`,
+                  ? `مرحباً بعودتك يا ${profileRes.data.name}! تم الدخول بنجاح 🔥`
+                  : `Welcome back, ${profileRes.data.name}! Logged in successfully 🔥`,
                 'ready'
               );
             } else {
-              // Not in profiles, try checking orders table as a legacy fallback
+              // Not in customers, try checking orders table as a legacy fallback
               checkOrdersTableFallback();
             }
           })
           .catch(err => {
-            console.warn("Profiles query failed, falling back to orders:", err);
+            console.warn("Customers query failed, falling back to orders:", err);
             checkOrdersTableFallback();
           });
       } else {
@@ -3332,16 +3420,22 @@ function initCustomerView() {
       AppState.customerName = nameVal;
       saveToLocalStorage();
 
-      // Create Account immediately in Supabase profiles!
+      // Create Account immediately in Supabase customers!
       if (supabaseClient) {
         supabaseClient
-          .from('profiles')
+          .from('customers')
           .upsert({
-            phone_number: AppState.phoneNumber,
-            customer_name: AppState.customerName
+            phone: AppState.phoneNumber,
+            name: AppState.customerName
           })
+          .select()
+          .single()
           .then(res => {
-            console.log('Account profile created in Supabase:', res);
+            if (res.data) {
+              AppState.customerId = res.data.id;
+              saveToLocalStorage();
+              console.log('Account profile created in Supabase:', res.data);
+            }
           });
       }
 
