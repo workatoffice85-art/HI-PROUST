@@ -1537,6 +1537,12 @@ function updateLiveTrackingUI(order) {
       <span style="color: var(--primary-red);">${order.total.toFixed(2)} ${L.sar}</span>
     `;
     itemsContainer.appendChild(totalRow);
+
+    // Add a non-shrinking bottom spacer to prevent browser scrollable-flexbox padding clipping!
+    const spacer = document.createElement('div');
+    spacer.style.height = '6px';
+    spacer.style.flexShrink = '0';
+    itemsContainer.appendChild(spacer);
   }
 
   // Timeline Step Status Adjustments
