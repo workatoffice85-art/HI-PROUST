@@ -551,7 +551,6 @@ async function syncCloudDatabase() {
     console.warn("Supabase fetch error, fallback to local:", err);
   }
 }
-}
 
 // ==========================================================================
 // 4. DIGITAL SOUND GENERATORS (Web Audio API Synthesizer)
