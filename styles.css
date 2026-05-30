@@ -1269,12 +1269,13 @@ main {
 }
 
 .kds-column {
-  background-color: rgba(24, 24, 28, 0.4);
+  background-color: #ffffff;
   border-radius: 16px;
   border: 1px solid var(--dark-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 10px 30px rgba(198, 40, 40, 0.02), 0 2px 8px rgba(0, 0, 0, 0.01);
 }
 
 .kds-column-header {
@@ -1333,6 +1334,8 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background-color: #FAF9F0; /* Delicate warm cream contrast */
+  border-top: 1px solid var(--dark-border);
 }
 
 .kds-card {
