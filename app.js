@@ -389,19 +389,22 @@ async function loadFromLocalStorage() {
           .from('products')
           .select('*');
         if (prodData && prodData.length > 0) {
-          MENU = prodData.map(p => ({
-            id: p.id,
-            cat: p.category_id,
-            nameAr: p.name_ar,
-            nameEn: p.name_en,
-            descAr: p.description_ar || '',
-            descEn: p.description_en || '',
-            price: Number(p.price),
-            spicy: p.is_spicy,
-            bestSeller: p.is_bestseller,
-            svg: p.image_url || '',
-            imageUrl: p.image_url || null
-          }));
+          MENU = prodData.map(p => {
+            const existingSeed = MENU.find(m => m.id === p.id);
+            return {
+              id: p.id,
+              cat: p.category_id,
+              nameAr: p.name_ar,
+              nameEn: p.name_en,
+              descAr: p.description_ar || '',
+              descEn: p.description_en || '',
+              price: Number(p.price),
+              spicy: p.is_spicy,
+              bestSeller: p.is_bestseller,
+              svg: p.image_url ? (p.image_url.startsWith('<svg') ? p.image_url : '') : (existingSeed ? existingSeed.svg : ''),
+              imageUrl: p.image_url ? (!p.image_url.startsWith('<svg') ? p.image_url : null) : null
+            };
+          });
         }
       } catch (err) {
         console.warn("Supabase products fetch error:", err);
@@ -783,7 +786,7 @@ let currentPhoneDigits = "";
 function renderPhoneDisplay() {
   const disp = document.getElementById('phone-display');
   if (currentPhoneDigits === "") {
-    disp.innerText = AppState.selectedLang === 'ar' ? "05XXXXXXXX" : "05XXXXXXXX";
+    disp.innerText = AppState.selectedLang === 'ar' ? "01XXXXXXXXX" : "01XXXXXXXXX";
     disp.style.opacity = 0.4;
   } else {
     disp.innerText = currentPhoneDigits;
@@ -795,10 +798,10 @@ function handleKeypadPress(val) {
   AudioSynthesizer.playBeep();
   if (val === "del") {
     currentPhoneDigits = currentPhoneDigits.slice(0, -1);
-  } else if (currentPhoneDigits.length < 10) {
-    // Only accept numeric inputs starting with 05
+  } else if (currentPhoneDigits.length < 11) {
+    // Only accept numeric inputs starting with 01 (Egyptian mobile format)
     if (currentPhoneDigits.length === 0 && val !== "0") return;
-    if (currentPhoneDigits.length === 1 && val !== "5") return;
+    if (currentPhoneDigits.length === 1 && val !== "1") return;
     currentPhoneDigits += val;
   }
   renderPhoneDisplay();
@@ -1084,7 +1087,7 @@ function triggerPlaceOrder() {
     id: orderId,
     table: AppState.selectedTable,
     name: AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل طاولة " : "Guest Table ") + AppState.selectedTable,
-    phone: AppState.phoneNumber || "0500000000",
+    phone: AppState.phoneNumber || "01000000000",
     items: orderItems,
     subtotal: subtotal,
     tax: tax,
@@ -1812,7 +1815,7 @@ function showToastNotification(text, type = 'new') {
 // Trigger quick mock sample orders on click or first launch
 function triggerAutoMockOrder() {
   const names = ["عبدالرحمن خالد", "سارة علي", "فيصل العتيبي", "لولوة المطيري", "خالد الحربي", "نورة الدوسري"];
-  const phones = ["0551234567", "0549876543", "0561112223", "0504445556", "0537778889", "0559990001"];
+  const phones = ["01012345678", "01198765432", "01211122233", "01544455566", "01077788899", "01199900011"];
   const tables = [2, 3, 5, 6, 8];
 
   const randomName = names[Math.floor(Math.random() * names.length)];
@@ -1853,7 +1856,7 @@ function prePopulateHistoricalOrders() {
     id: "A098",
     table: 4,
     name: "أحمد بن فهد",
-    phone: "0558877665",
+    phone: "01088776655",
     items: [
       { id: "br-01", nameAr: "هاي بروستد عادي (٤ قطع)", nameEn: "Hi Broast Normal (4 Pcs)", qty: 2, price: 24.00 },
       { id: "sd-01", nameAr: "بطاطس مقلية ذهبية سوبر", nameEn: "Golden French Fries Super", qty: 1, price: 7.00 },
@@ -1876,7 +1879,7 @@ function prePopulateHistoricalOrders() {
     id: "A099",
     table: 1,
     name: "منيرة السديري",
-    phone: "0543322110",
+    phone: "01133221100",
     items: [
       { id: "bg-01", nameAr: "ساندوتش دجاج كريسبي ميجا", nameEn: "Mighty Crispy Chicken Burger", qty: 1, price: 18.00 },
       { id: "rc-01", nameAr: "أرز ريزو مع قطع ستربس مقرمشة", nameEn: "Rizo Rice with Strips", qty: 1, price: 15.00 },
@@ -1899,7 +1902,7 @@ function prePopulateHistoricalOrders() {
     id: "A100",
     table: 6,
     name: "سلطان العجمي",
-    phone: "0565544332",
+    phone: "01255443322",
     items: [
       { id: "bk-01", nameAr: "وجبة عائلية سوبر (٨ قطع)", nameEn: "Super Family Bucket (8 Pcs)", qty: 1, price: 48.00 },
       { id: "sd-02", nameAr: "علبة ثومية هاي بروست إضافية", nameEn: "Extra Special Garlic Dip", qty: 2, price: 3.00 }
@@ -1928,7 +1931,7 @@ function renderCustomerProfileScreen() {
   const historyContainer = document.getElementById('profile-orders-history');
   
   nameLabel.innerText = AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل مميز" : "Valued Customer");
-  phoneLabel.innerText = AppState.phoneNumber || "05XXXXXXXX";
+  phoneLabel.innerText = AppState.phoneNumber || "01XXXXXXXXX";
 
   // Calculate order metrics & loyalty progress
   const customerOrders = AppState.orders.filter(o => o.phone === AppState.phoneNumber);
@@ -2568,12 +2571,12 @@ function initCustomerView() {
   const btnPhoneSubmit = document.getElementById('btn-phone-submit');
   if (btnPhoneSubmit) {
     btnPhoneSubmit.addEventListener('click', () => {
-      if (currentPhoneDigits.length < 10) {
+      if (currentPhoneDigits.length < 11) {
         AudioSynthesizer.playBeep();
         showToastNotification(
           AppState.selectedLang === 'ar'
-            ? "الرجاء إدخال رقم جوال سعودي صحيح مكون من ١٠ أرقام!"
-            : "Please enter a valid 10-digit mobile number!",
+            ? "الرجاء إدخال رقم جوال مصري صحيح مكون من ١١ رقماً!"
+            : "Please enter a valid 11-digit Egyptian mobile number!",
           'new'
         );
         return;
@@ -3536,10 +3539,31 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Subscribe to Supabase Realtime cloud updates
     if (supabaseClient) {
+      // Listen to orders
       supabaseClient
         .channel('public:orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-          console.log('Database changes detected via Supabase Realtime!', payload);
+          console.log('Database changes detected via Supabase Realtime on orders!', payload);
+          loadFromLocalStorage();
+        })
+        .subscribe();
+
+      // Listen to products
+      supabaseClient
+        .channel('public:products')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+          console.log('Database changes detected via Supabase Realtime on products!', payload);
+          AppState.staticDataLoaded = false;
+          loadFromLocalStorage();
+        })
+        .subscribe();
+
+      // Listen to categories
+      supabaseClient
+        .channel('public:categories')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, payload => {
+          console.log('Database changes detected via Supabase Realtime on categories!', payload);
+          AppState.staticDataLoaded = false;
           loadFromLocalStorage();
         })
         .subscribe();

@@ -690,6 +690,7 @@ main {
   flex-direction: column;
   position: relative;
   transition: all var(--transition-fast);
+  height: 265px; /* Ensures absolutely flawless uniform height alignments across the grid! */
 }
 
 .menu-card:hover {
@@ -740,10 +741,15 @@ main {
 }
 
 .menu-card-title {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 800;
   color: var(--text-dark);
-  line-height: 1.3;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 2.7em; /* Stable title block! */
 }
 
 .menu-card-desc {
@@ -755,6 +761,7 @@ main {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  height: 2.6em; /* Stable description block! */
 }
 
 .menu-card-footer {

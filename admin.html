@@ -713,7 +713,7 @@
 
   <!-- MODAL: ADD / EDIT PRODUCT -->
   <div class="receipt-overlay" id="modal-product-editor" style="display: none; justify-content: center; align-items: center; z-index: 99999;">
-    <div class="receipt-modal" style="max-width: 500px; width: 90%; background: linear-gradient(135deg, #18181C 0%, #101012 100%); border: 2px solid var(--dark-border); border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); direction: rtl; text-align: right;">
+    <div class="receipt-modal" style="max-width: 650px; width: 90%; background: linear-gradient(135deg, #18181C 0%, #101012 100%); border: 2px solid var(--dark-border); border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); direction: rtl; text-align: right;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--dark-border); padding-bottom: 12px; margin-bottom: 20px;">
         <h3 id="product-editor-title" style="color: var(--primary-yellow); font-weight: 800; font-size: 1.15rem;"><i class="fa-solid fa-utensils"></i> إضافة صنف وجبة جديد</h3>
         <button id="btn-close-product-modal" style="background: none; border: none; color: var(--text-light-muted); font-size: 1.25rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
@@ -722,15 +722,13 @@
       <form id="form-product-editor" style="display: flex; flex-direction: column; gap: 14px;">
         <input type="hidden" id="edit-product-id" value="">
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-          <div>
-            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالعربية:</label>
-            <input type="text" class="custom-text-input" id="edit-prod-name-ar" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%;" required>
-          </div>
-          <div>
-            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالإنجليزية:</label>
-            <input type="text" class="custom-text-input" id="edit-prod-name-en" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%;" required>
-          </div>
+        <div>
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالعربية:</label>
+          <input type="text" class="custom-text-input" id="edit-prod-name-ar" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%; text-align: right;" required>
+        </div>
+        <div>
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالإنجليزية:</label>
+          <input type="text" class="custom-text-input" id="edit-prod-name-en" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%; text-align: left;" required>
         </div>
 
         <div>
@@ -793,7 +791,7 @@
 
   <!-- MODAL: ADD CATEGORY -->
   <div class="receipt-overlay" id="modal-category-editor" style="display: none; justify-content: center; align-items: center; z-index: 99999;">
-    <div class="receipt-modal" style="max-width: 380px; width: 90%; background: linear-gradient(135deg, #18181C 0%, #101012 100%); border: 2px solid var(--dark-border); border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); direction: rtl; text-align: right;">
+    <div class="receipt-modal" style="max-width: 500px; width: 90%; background: linear-gradient(135deg, #18181C 0%, #101012 100%); border: 2px solid var(--dark-border); border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); direction: rtl; text-align: right;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--dark-border); padding-bottom: 12px; margin-bottom: 20px;">
         <h3 style="color: var(--primary-yellow); font-weight: 800; font-size: 1.1rem;"><i class="fa-solid fa-folder-tree"></i> إضافة قسم منيو جديد</h3>
         <button id="btn-close-cat-modal" style="background: none; border: none; color: var(--text-light-muted); font-size: 1.25rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
@@ -806,11 +804,11 @@
         </div>
         <div>
           <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالعربية:</label>
-          <input type="text" class="custom-text-input" id="edit-cat-name-ar" placeholder="مثال: وجبات الكريسبي الفاخرة" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%;" required>
+          <input type="text" class="custom-text-input" id="edit-cat-name-ar" placeholder="مثال: وجبات الكريسبي الفاخرة" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%; text-align: right;" required>
         </div>
         <div>
           <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالإنجليزية:</label>
-          <input type="text" class="custom-text-input" id="edit-cat-name-en" placeholder="e.g. Premium Crispy Meals" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%;" required>
+          <input type="text" class="custom-text-input" id="edit-cat-name-en" placeholder="e.g. Premium Crispy Meals" style="background: #111113; border-color: var(--dark-border); color: #fff; padding: 10px; border-radius: 10px; width: 100%; text-align: left;" required>
         </div>
 
         <button type="submit" class="btn-primary-mobile" style="margin-top: 10px; padding: 12px; font-size: 0.9rem; background: linear-gradient(135deg, var(--color-ready) 0%, #059669 100%); border-color: rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(16,185,129,0.25);">
