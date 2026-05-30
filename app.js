@@ -301,6 +301,7 @@ const AppState = {
   cartNotes: '',
   deliveryType: 'dine-in', // 'dine-in' | 'takeaway'
   activeOrderId: null, // Order currently being tracked by this phone instance
+  editingOrderId: null, // Order currently being edited in cart
 
   // Unified Live Queue of Orders
   orders: [],
@@ -445,6 +446,7 @@ async function loadFromLocalStorage() {
           status: o.status,
           paymentStatus: o.payment_status,
           paymentMethod: o.payment_method,
+          pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
           auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
           timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
           elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
@@ -1062,6 +1064,11 @@ function renderCartSummary() {
 function triggerPlaceOrder() {
   if (AppState.cart.length === 0) return;
 
+  if (AppState.editingOrderId) {
+    triggerSaveOrderEdits();
+    return;
+  }
+
   const L = TRANSLATIONS[AppState.selectedLang];
 
   // Calculate prices
@@ -1162,6 +1169,140 @@ function triggerPlaceOrder() {
   updateCashierMetrics();
 }
 
+function triggerSaveOrderEdits() {
+  const orderId = AppState.editingOrderId;
+  const activeOrder = AppState.orders.find(o => o.id === orderId);
+  if (!activeOrder) return;
+
+  const L = TRANSLATIONS[AppState.selectedLang];
+
+  // Calculate prices
+  let subtotal = 0;
+  AppState.cart.forEach(c => {
+    const item = MENU.find(m => m.id === c.id);
+    if (item) subtotal += (item.price * c.qty);
+  });
+  const tax = subtotal * 0.15;
+  const total = subtotal + tax;
+
+  // Formulate items
+  const orderItems = AppState.cart.map(c => {
+    const item = MENU.find(m => m.id === c.id);
+    return {
+      id: item.id,
+      nameAr: item.nameAr,
+      nameEn: item.nameEn,
+      qty: c.qty,
+      price: item.price
+    };
+  });
+
+  const notes = document.getElementById('cart-notes').value.trim();
+
+  // Branch based on payment status:
+  if (activeOrder.paymentStatus !== 'paid') {
+    // 1. Direct Free Editing (Unpaid Order)
+    activeOrder.items = orderItems;
+    activeOrder.subtotal = subtotal;
+    activeOrder.tax = tax;
+    activeOrder.total = total;
+    activeOrder.notes = notes;
+    activeOrder.type = AppState.deliveryType;
+    activeOrder.table = AppState.selectedTable;
+    
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(activeOrder, AppState.selectedLang === 'ar' ? "تعديل عناصر الطلب من قبل العميل" : "Order items edited by guest");
+    }
+
+    saveToLocalStorage();
+
+    // Cloud Sync (Supabase Update)
+    if (supabaseClient) {
+      supabaseClient
+        .from('orders')
+        .update({
+          items: activeOrder.items,
+          subtotal: activeOrder.subtotal,
+          tax: activeOrder.tax,
+          total: activeOrder.total,
+          notes: activeOrder.notes,
+          delivery_type: activeOrder.type,
+          table_number: activeOrder.table,
+          audit_log: activeOrder.auditLog
+        })
+        .eq('id', orderId)
+        .then(res => {
+          console.log('Order changes persisted to Supabase directly:', res);
+        });
+    }
+
+    showToastNotification(
+      AppState.selectedLang === 'ar' ? 'تم حفظ التعديلات وتحديث الطلب بنجاح! 🎉' : 'Order edits saved successfully! 🎉',
+      'ready'
+    );
+  } else {
+    // 2. Cashier Approval Required (Paid/Approved Order)
+    const proposed = {
+      items: orderItems,
+      subtotal: subtotal,
+      tax: tax,
+      total: total,
+      notes: notes,
+      type: AppState.deliveryType,
+      table: AppState.selectedTable
+    };
+
+    activeOrder.pendingUpdate = proposed;
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(activeOrder, AppState.selectedLang === 'ar' ? "تقديم طلب تعديل بانتظار موافقة الكاشير" : "Proposed edit request sent to Cashier");
+    }
+
+    saveToLocalStorage();
+
+    // Cloud Sync (Supabase Update pending_update)
+    if (supabaseClient) {
+      supabaseClient
+        .from('orders')
+        .update({
+          pending_update: proposed,
+          audit_log: activeOrder.auditLog
+        })
+        .eq('id', orderId)
+        .then(res => {
+          console.log('Proposed edits persisted to Supabase pending_update:', res);
+        });
+    }
+
+    showToastNotification(
+      AppState.selectedLang === 'ar' 
+        ? 'تم إرسال التعديلات بنجاح وبانتظار موافقة الكاشير! ⏳' 
+        : 'Edits submitted successfully, pending cashier approval! ⏳',
+      'ready'
+    );
+  }
+
+  // Clear editing mode state
+  AppState.editingOrderId = null;
+  AppState.cart = [];
+  document.getElementById('cart-notes').value = '';
+  document.getElementById('cart-edit-mode-banner').classList.add('hidden');
+
+  // Reset checkout button text
+  const submitText = document.getElementById('txt-cart-checkout-btn');
+  if (submitText) {
+    submitText.innerText = AppState.selectedLang === 'ar' ? 'تأكيد وإرسال الطلب للمطبخ' : 'Confirm & Place Order';
+  }
+
+  // Return to live tracking
+  updateLiveTrackingUI(activeOrder);
+  switchMobileScreen('mobile-tracking');
+
+  // Re-draw cashier / KDS reactive boards
+  renderKDSBoard();
+  renderCashierOrdersTable();
+  updateCashierMetrics();
+}
+
 function updateLiveTrackingUI(order) {
   if (!order) return;
 
@@ -1169,6 +1310,30 @@ function updateLiveTrackingUI(order) {
 
   // Set Order ID
   document.getElementById('track-order-id').innerText = order.id;
+
+  // Show or hide pending edit review banner!
+  const pendingBanner = document.getElementById('tracking-edit-pending-banner');
+  if (pendingBanner) {
+    if (order.pendingUpdate) {
+      pendingBanner.classList.remove('hidden');
+    } else {
+      pendingBanner.classList.add('hidden');
+    }
+  }
+
+  // Disable or enable "Edit Current Order" button depending on order status
+  const editBtn = document.getElementById('btn-track-edit-order');
+  if (editBtn) {
+    if (order.status === 'completed' || order.status === 'ready' || order.pendingUpdate) {
+      editBtn.disabled = true;
+      editBtn.style.opacity = '0.5';
+      editBtn.style.cursor = 'not-allowed';
+    } else {
+      editBtn.disabled = false;
+      editBtn.style.opacity = '1';
+      editBtn.style.cursor = 'pointer';
+    }
+  }
 
   // Populate items summary card
   const itemsContainer = document.getElementById('tracking-items-summary');
@@ -1522,6 +1687,10 @@ function renderCashierOrdersTable() {
       statusTag = `<span class="badge-status completed">${AppState.selectedLang === 'ar' ? 'مكتمل' : 'Done'}</span>`;
     }
 
+    if (o.pendingUpdate) {
+      statusTag += ` <span class="badge-status" style="background-color: #FEF3C7; border: 1px solid #D97706; color: #B45309; margin-right: 4px; animation: pulse 1.5s infinite;"><i class="fa-solid fa-hourglass-half"></i> ${AppState.selectedLang === 'ar' ? 'تعديل معلق' : 'Edit Pending'}</span>`;
+    }
+
     const payTag = o.paymentStatus === 'paid'
       ? `<span class="badge-pay paid">${AppState.selectedLang === 'ar' ? 'مدفوع' : 'Paid'}</span>`
       : `<span class="badge-pay unpaid">${AppState.selectedLang === 'ar' ? 'غير مدفوع' : 'Unpaid'}</span>`;
@@ -1647,6 +1816,64 @@ function renderCashierCheckoutSidebar() {
     `;
   }
 
+  let comparisonHtml = '';
+  if (selectedOrderForCheckout.pendingUpdate) {
+    const proposed = selectedOrderForCheckout.pendingUpdate;
+    
+    // Original items list
+    let origItemsText = selectedOrderForCheckout.items.map(itm => {
+      const name = AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn;
+      return `<div style="font-size: 0.65rem; color:#4B5563;">• ${itm.qty}x ${name}</div>`;
+    }).join('');
+
+    // Proposed items list
+    let propItemsText = proposed.items.map(itm => {
+      const name = AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn;
+      return `<div style="font-size: 0.65rem; color:#B45309; font-weight:700;">• ${itm.qty}x ${name}</div>`;
+    }).join('');
+
+    const priceDiff = proposed.total - selectedOrderForCheckout.total;
+    const diffText = priceDiff >= 0 
+      ? `<span style="color: var(--color-ready); font-weight:800;">+${priceDiff.toFixed(2)} ${L.sar}</span>`
+      : `<span style="color: var(--primary-red); font-weight:800;">${priceDiff.toFixed(2)} ${L.sar}</span>`;
+
+    comparisonHtml = `
+      <div class="pending-edit-comparison-card" style="background-color: #FFFBEB; border: 2px dashed #D97706; border-radius: 12px; padding: 14px; margin-top: 16px; text-align: right; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.05);">
+        <h5 style="font-weight: 800; color: #B45309; font-size: 0.8rem; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-bell" style="animation: pulse 1.2s infinite;"></i>
+          <span>${AppState.selectedLang === 'ar' ? 'طلب تعديل معلق من العميل!' : 'Pending Edit Request from Guest!'}</span>
+        </h5>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.7rem; margin-bottom: 10px; border-bottom: 1px dashed rgba(217,119,6,0.2); padding-bottom: 10px;">
+          <div style="border-left: 1px solid rgba(217,119,6,0.15); padding-left: 8px;">
+            <strong style="color: #6B7280; display:block; margin-bottom: 4px;">${AppState.selectedLang === 'ar' ? 'الطلب الأصلي:' : 'Original Order:'}</strong>
+            ${origItemsText}
+            <div style="margin-top: 6px; font-weight: bold; color: var(--text-dark);">${AppState.selectedLang === 'ar' ? 'الإجمالي:' : 'Total:'} ${selectedOrderForCheckout.total.toFixed(2)}</div>
+          </div>
+          <div>
+            <strong style="color: #B45309; display:block; margin-bottom: 4px;">${AppState.selectedLang === 'ar' ? 'الطلب المقترح الجديد:' : 'Proposed Edits:'}</strong>
+            ${propItemsText}
+            <div style="margin-top: 6px; font-weight: bold; color: #B45309;">${AppState.selectedLang === 'ar' ? 'الإجمالي:' : 'Total:'} ${proposed.total.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.75rem; font-weight: 700; margin-bottom: 12px; display: flex; justify-content: space-between;">
+          <span>${AppState.selectedLang === 'ar' ? 'فارق السعر الإجمالي:' : 'Net Price Difference:'}</span>
+          ${diffText}
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-cashier-approve-edit" style="flex:1; background-color: var(--color-ready); color:#fff; border:none; padding:8px; border-radius:6px; font-size:0.7rem; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+            <i class="fa-solid fa-circle-check"></i> ${AppState.selectedLang === 'ar' ? 'قبول التعديل' : 'Accept'}
+          </button>
+          <button id="btn-cashier-reject-edit" style="flex:1; background-color: var(--primary-red); color:#fff; border:none; padding:8px; border-radius:6px; font-size:0.7rem; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+            <i class="fa-solid fa-circle-xmark"></i> ${AppState.selectedLang === 'ar' ? 'رفض التعديل' : 'Reject'}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   content.innerHTML = `
     <div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1683,6 +1910,8 @@ function renderCashierCheckoutSidebar() {
         </div>
       </div>
 
+      ${comparisonHtml}
+
       ${selectedOrderForCheckout.paymentStatus === 'paid' ? `
         <div style="background-color: rgba(16, 185, 129, 0.1); border: 1px solid var(--color-ready); color: var(--color-ready); padding: 12px; border-radius: 10px; text-align: center; margin-top: 16px; font-weight: 800;">
           <i class="fa-solid fa-circle-check"></i> تم تحصيل فاتورة هذا الطلب بالكامل بنجاح
@@ -1710,6 +1939,110 @@ function renderCashierCheckoutSidebar() {
   } else {
     payActionBtn.disabled = false;
     payActionBtn.style.opacity = 1;
+  }
+
+  // Attach Accept/Reject Edit actions
+  const btnApproveEdit = document.getElementById('btn-cashier-approve-edit');
+  if (btnApproveEdit) {
+    btnApproveEdit.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (!selectedOrderForCheckout || !selectedOrderForCheckout.pendingUpdate) return;
+      
+      const proposed = selectedOrderForCheckout.pendingUpdate;
+      
+      // Update order main details
+      selectedOrderForCheckout.items = proposed.items;
+      selectedOrderForCheckout.subtotal = proposed.subtotal;
+      selectedOrderForCheckout.tax = proposed.tax;
+      selectedOrderForCheckout.total = proposed.total;
+      if (proposed.notes !== undefined) selectedOrderForCheckout.notes = proposed.notes;
+      if (proposed.type) selectedOrderForCheckout.type = proposed.type;
+      if (proposed.table) selectedOrderForCheckout.table = proposed.table;
+      
+      // Clear pending updates
+      selectedOrderForCheckout.pendingUpdate = null;
+      
+      const staffName = AppState.loggedStaff 
+        ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
+        : (AppState.selectedLang === 'ar' ? 'الكاشير' : 'Cashier');
+        
+      addAuditLog(selectedOrderForCheckout, AppState.selectedLang === 'ar' ? `الموافقة على تعديلات العميل بواسطة ${staffName}` : `Guest edits approved by ${staffName}`);
+      
+      saveToLocalStorage();
+      
+      // Sync with Supabase
+      if (supabaseClient) {
+        supabaseClient
+          .from('orders')
+          .update({
+            items: selectedOrderForCheckout.items,
+            subtotal: selectedOrderForCheckout.subtotal,
+            tax: selectedOrderForCheckout.tax,
+            total: selectedOrderForCheckout.total,
+            notes: selectedOrderForCheckout.notes,
+            delivery_type: selectedOrderForCheckout.type,
+            table_number: selectedOrderForCheckout.table,
+            pending_update: null,
+            audit_log: selectedOrderForCheckout.auditLog
+          })
+          .eq('id', selectedOrderForCheckout.id)
+          .then(res => {
+            console.log('Approved edits synced to Supabase successfully:', res);
+          });
+      }
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم قبول تعديلات العميل وتحديث الطلب بنجاح! 🚀' : 'Accepted guest edits and updated order successfully! 🚀',
+        'ready'
+      );
+      
+      renderCashierOrdersTable();
+      renderCashierCheckoutSidebar();
+      renderKDSBoard();
+      updateCashierMetrics();
+    });
+  }
+
+  const btnRejectEdit = document.getElementById('btn-cashier-reject-edit');
+  if (btnRejectEdit) {
+    btnRejectEdit.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (!selectedOrderForCheckout || !selectedOrderForCheckout.pendingUpdate) return;
+      
+      // Clear pending updates
+      selectedOrderForCheckout.pendingUpdate = null;
+      
+      const staffName = AppState.loggedStaff 
+        ? (AppState.selectedLang === 'ar' ? AppState.loggedStaff.name : AppState.loggedStaff.nameEn)
+        : (AppState.selectedLang === 'ar' ? 'الكاشير' : 'Cashier');
+        
+      addAuditLog(selectedOrderForCheckout, AppState.selectedLang === 'ar' ? `رفض تعديلات العميل بواسطة ${staffName}` : `Guest edits rejected by ${staffName}`);
+      
+      saveToLocalStorage();
+      
+      // Sync with Supabase
+      if (supabaseClient) {
+        supabaseClient
+          .from('orders')
+          .update({
+            pending_update: null,
+            audit_log: selectedOrderForCheckout.auditLog
+          })
+          .eq('id', selectedOrderForCheckout.id)
+          .then(res => {
+            console.log('Rejected edits synced to Supabase successfully:', res);
+          });
+      }
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم رفض تعديلات العميل بنجاح.' : 'Rejected guest edits.',
+        'new'
+      );
+      
+      renderCashierOrdersTable();
+      renderCashierCheckoutSidebar();
+      renderKDSBoard();
+    });
   }
 }
 
@@ -2678,7 +3011,7 @@ function initCustomerView() {
     });
   });
 
-  // Keypad Confirm
+  // Keypad Confirm with Dynamic Supabase Profile and Active Order Matching
   const btnPhoneSubmit = document.getElementById('btn-phone-submit');
   if (btnPhoneSubmit) {
     btnPhoneSubmit.addEventListener('click', () => {
@@ -2692,41 +3025,136 @@ function initCustomerView() {
         );
         return;
       }
-      AppState.phoneNumber = currentPhoneDigits;
+      
+      // Loading State Visual Cue
+      const originalHtml = btnPhoneSubmit.innerHTML;
+      btnPhoneSubmit.disabled = true;
+      btnPhoneSubmit.innerHTML = AppState.selectedLang === 'ar' 
+        ? 'جاري التحقق... <i class="fa-solid fa-spinner fa-spin"></i>' 
+        : 'Verifying... <i class="fa-solid fa-spinner fa-spin"></i>';
 
-      // Check if user exists in cached profiles map or orders history
-      let localProfiles = {};
-      const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
-      if (cachedProfiles) {
-        try { localProfiles = JSON.parse(cachedProfiles); } catch(e) {}
-      }
+      const localVerificationFallback = () => {
+        AppState.phoneNumber = currentPhoneDigits;
+        let localProfiles = {};
+        const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
+        if (cachedProfiles) {
+          try { localProfiles = JSON.parse(cachedProfiles); } catch(e) {}
+        }
 
-      const cachedName = localProfiles[currentPhoneDigits];
-      const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
+        const cachedName = localProfiles[currentPhoneDigits];
+        const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
 
-      if (cachedName) {
-        AppState.customerName = cachedName;
-        saveToLocalStorage(); // Instant save of profile cache
-        showToastNotification(
-          AppState.selectedLang === 'ar'
-            ? `مرحباً بعودتك يا ${cachedName}! تم فتح ملفك الشخصي بنجاح 🔥`
-            : `Welcome back, ${cachedName}! Profile unlocked successfully 🔥`,
-          'ready'
-        );
-        switchMobileScreen('mobile-menu');
-      } else if (pastOrder) {
-        AppState.customerName = pastOrder.name;
-        saveToLocalStorage(); // Instant save of profile cache
-        showToastNotification(
-          AppState.selectedLang === 'ar'
-            ? `مرحباً بعودتك يا ${pastOrder.name}! تم فتح ملفك الشخصي بنجاح 🔥`
-            : `Welcome back, ${pastOrder.name}! Profile unlocked successfully 🔥`,
-          'ready'
-        );
-        switchMobileScreen('mobile-menu');
+        if (cachedName) {
+          AppState.customerName = cachedName;
+          saveToLocalStorage();
+          showToastNotification(
+            AppState.selectedLang === 'ar'
+              ? `مرحباً بعودتك يا ${cachedName}! تم فتح ملفك الشخصي بنجاح 🔥`
+              : `Welcome back, ${cachedName}! Profile unlocked successfully 🔥`,
+            'ready'
+          );
+          switchMobileScreen('mobile-menu');
+        } else if (pastOrder) {
+          AppState.customerName = pastOrder.name;
+          saveToLocalStorage();
+          showToastNotification(
+            AppState.selectedLang === 'ar'
+              ? `مرحباً بعودتك يا ${pastOrder.name}! تم فتح ملفك الشخصي بنجاح 🔥`
+              : `Welcome back, ${pastOrder.name}! Profile unlocked successfully 🔥`,
+            'ready'
+          );
+          switchMobileScreen('mobile-menu');
+        } else {
+          document.getElementById('name-input').value = "";
+          switchMobileScreen('mobile-name');
+        }
+      };
+
+      if (supabaseClient) {
+        supabaseClient
+          .from('orders')
+          .select('*')
+          .eq('phone_number', currentPhoneDigits)
+          .order('created_at', { ascending: false })
+          .then(res => {
+            btnPhoneSubmit.disabled = false;
+            btnPhoneSubmit.innerHTML = originalHtml;
+
+            if (res.data && res.data.length > 0) {
+              const activeDbOrder = res.data.find(o => o.status !== 'completed');
+
+              if (activeDbOrder) {
+                // 1. Dynamic active order restore
+                const o = activeDbOrder;
+                const restoredOrder = {
+                  id: o.id,
+                  table: o.table_number,
+                  name: o.customer_name,
+                  phone: o.phone_number,
+                  items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+                  subtotal: Number(o.subtotal),
+                  tax: Number(o.tax),
+                  total: Number(o.total),
+                  notes: o.notes,
+                  type: o.delivery_type,
+                  status: o.status,
+                  paymentStatus: o.payment_status,
+                  paymentMethod: o.payment_method,
+                  pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+                  auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+                  timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+                  elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+                };
+
+                AppState.phoneNumber = restoredOrder.phone;
+                AppState.customerName = restoredOrder.name;
+                AppState.activeOrderId = restoredOrder.id;
+
+                const idx = AppState.orders.findIndex(x => x.id === restoredOrder.id);
+                if (idx >= 0) AppState.orders[idx] = restoredOrder;
+                else AppState.orders.push(restoredOrder);
+
+                saveToLocalStorage();
+                updateLiveTrackingUI(restoredOrder);
+                switchMobileScreen('mobile-tracking');
+
+                showToastNotification(
+                  AppState.selectedLang === 'ar'
+                    ? `تم العثور على طلب نشط! جاري الانتقال لصفحة التتبع ⚡`
+                    : `Active order found! Redirecting to live tracking ⚡`,
+                  'ready'
+                );
+              } else {
+                // 2. Profile auto-match from previous order
+                const latestOrder = res.data[0];
+                AppState.phoneNumber = currentPhoneDigits;
+                AppState.customerName = latestOrder.customer_name;
+                
+                saveToLocalStorage();
+                
+                showToastNotification(
+                  AppState.selectedLang === 'ar'
+                    ? `مرحباً بعودتك يا ${latestOrder.customer_name}! تم الدخول وتفعيل حسابك 🔥`
+                    : `Welcome back, ${latestOrder.customer_name}! Logged in successfully 🔥`,
+                  'ready'
+                );
+                switchMobileScreen('mobile-menu');
+              }
+            } else {
+              // Completely new guest
+              AppState.phoneNumber = currentPhoneDigits;
+              document.getElementById('name-input').value = "";
+              switchMobileScreen('mobile-name');
+            }
+          })
+          .catch(err => {
+            console.warn("Error verifying phone via Supabase:", err);
+            btnPhoneSubmit.disabled = false;
+            btnPhoneSubmit.innerHTML = originalHtml;
+            localVerificationFallback();
+          });
       } else {
-        document.getElementById('name-input').value = "";
-        switchMobileScreen('mobile-name');
+        localVerificationFallback();
       }
     });
   }
@@ -2747,7 +3175,7 @@ function initCustomerView() {
         return;
       }
       AppState.customerName = nameVal;
-      saveToLocalStorage(); // Instant save of profile cache
+      saveToLocalStorage();
       switchMobileScreen('mobile-menu');
     });
   }
@@ -2799,6 +3227,92 @@ function initCustomerView() {
     });
   }
 
+  // Edit Current Order button
+  const btnTrackEditOrder = document.getElementById('btn-track-edit-order');
+  if (btnTrackEditOrder) {
+    btnTrackEditOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (!AppState.activeOrderId) return;
+      
+      const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+      if (!activeOrder) return;
+      
+      // Enter Edit Mode
+      AppState.editingOrderId = AppState.activeOrderId;
+      
+      // Load order items back to cart
+      AppState.cart = activeOrder.items.map(itm => ({
+        id: itm.id,
+        qty: itm.qty
+      }));
+      
+      // Populate special notes
+      const notesInput = document.getElementById('cart-notes');
+      if (notesInput) {
+        notesInput.value = activeOrder.notes || '';
+      }
+      
+      // Set table number and delivery type
+      AppState.selectedTable = activeOrder.table;
+      AppState.deliveryType = activeOrder.type;
+      
+      // Show edit mode banner in cart
+      document.getElementById('cart-edit-mode-banner').classList.remove('hidden');
+      document.getElementById('cart-edit-order-id').innerText = activeOrder.id;
+      
+      // Update checkout button text to indicate Save
+      const submitText = document.getElementById('txt-cart-checkout-btn');
+      if (submitText) {
+        submitText.innerText = AppState.selectedLang === 'ar' ? 'حفظ وإرسال تعديلات الطلب' : 'Save & Submit Order Edits';
+      }
+      
+      // Switch to cart view
+      renderCartSummary();
+      switchMobileScreen('mobile-cart');
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar'
+          ? `جاري تعديل الطلب ${activeOrder.id} - عدل السلة واحفظ التعديلات!`
+          : `Editing order ${activeOrder.id} - Modify cart and save edits!`,
+        'ready'
+      );
+    });
+  }
+
+  // Cancel edit button in cart
+  const btnCartCancelEdit = document.getElementById('btn-cart-cancel-edit');
+  if (btnCartCancelEdit) {
+    btnCartCancelEdit.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      
+      // Exit Edit Mode
+      AppState.editingOrderId = null;
+      AppState.cart = [];
+      document.getElementById('cart-notes').value = '';
+      document.getElementById('cart-edit-mode-banner').classList.add('hidden');
+      
+      // Reset checkout button text
+      const submitText = document.getElementById('txt-cart-checkout-btn');
+      if (submitText) {
+        submitText.innerText = AppState.selectedLang === 'ar' ? 'تأكيد وإرسال الطلب للمطبخ' : 'Confirm & Place Order';
+      }
+      
+      // Return to tracking screen
+      const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+      if (activeOrder) {
+        updateLiveTrackingUI(activeOrder);
+        switchMobileScreen('mobile-tracking');
+      } else {
+        switchMobileScreen('mobile-menu');
+      }
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم إلغاء تعديل الطلب.' : 'Order editing cancelled.',
+        'new'
+      );
+    });
+  }
+
   // Language Toggles
   document.querySelectorAll('.lang-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2815,31 +3329,108 @@ function initCustomerView() {
   checkTableQRParam();
   updateLanguageUI();
 
-  // Restore tracking session if there is a live active order being tracked
+  // Physical Keyboard Listener on Phone Screen Keypad
+  window.addEventListener('keydown', (e) => {
+    const activeScreen = document.querySelector('#customer-view .screen-state.active');
+    if (activeScreen && activeScreen.id === 'mobile-phone') {
+      if (e.key >= '0' && e.key <= '9') {
+        handleKeypadPress(e.key);
+      } else if (e.key === 'Backspace') {
+        handleKeypadPress('del');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const btnPhoneSubmit = document.getElementById('btn-phone-submit');
+        if (btnPhoneSubmit) btnPhoneSubmit.click();
+      }
+    }
+  });
+
+  // Restore tracking session from Supabase Cloud directly if activeOrderId is cached
   if (AppState.activeOrderId) {
-    const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
-    if (activeOrder && activeOrder.status !== 'completed') {
-      updateLiveTrackingUI(activeOrder);
-      switchMobileScreen('mobile-tracking');
+    if (supabaseClient) {
+      supabaseClient
+        .from('orders')
+        .select('*')
+        .eq('id', AppState.activeOrderId)
+        .single()
+        .then(res => {
+          if (res.data) {
+            const o = res.data;
+            const activeOrder = {
+              id: o.id,
+              table: o.table_number,
+              name: o.customer_name,
+              phone: o.phone_number,
+              items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+              subtotal: Number(o.subtotal),
+              tax: Number(o.tax),
+              total: Number(o.total),
+              notes: o.notes,
+              type: o.delivery_type,
+              status: o.status,
+              paymentStatus: o.payment_status,
+              paymentMethod: o.payment_method,
+              pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+              auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+              timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+              elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+            };
+
+            const idx = AppState.orders.findIndex(x => x.id === activeOrder.id);
+            if (idx >= 0) AppState.orders[idx] = activeOrder;
+            else AppState.orders.push(activeOrder);
+
+            if (activeOrder.status !== 'completed') {
+              updateLiveTrackingUI(activeOrder);
+              switchMobileScreen('mobile-tracking');
+              showToastNotification(
+                AppState.selectedLang === 'ar' ? "تم استعادة جلسة تتبع طلبك النشط!" : "Active tracking session restored!",
+                'ready'
+              );
+            } else {
+              AppState.activeOrderId = null;
+              saveToLocalStorage();
+              restoreFallbackMenuSession();
+            }
+          } else {
+            AppState.activeOrderId = null;
+            saveToLocalStorage();
+            restoreFallbackMenuSession();
+          }
+        })
+        .catch(err => {
+          console.warn("Error restoring active order from Supabase:", err);
+          AppState.activeOrderId = null;
+          saveToLocalStorage();
+          restoreFallbackMenuSession();
+        });
+    } else {
+      const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+      if (activeOrder && activeOrder.status !== 'completed') {
+        updateLiveTrackingUI(activeOrder);
+        switchMobileScreen('mobile-tracking');
+      } else {
+        AppState.activeOrderId = null;
+        saveToLocalStorage();
+        restoreFallbackMenuSession();
+      }
+    }
+  } else {
+    restoreFallbackMenuSession();
+  }
+
+  function restoreFallbackMenuSession() {
+    if (AppState.phoneNumber && AppState.customerName) {
+      currentPhoneDigits = AppState.phoneNumber;
+      renderPhoneDisplay();
+      switchMobileScreen('mobile-menu');
       showToastNotification(
-        AppState.selectedLang === 'ar' ? "تم استعادة جلسة تتبع طلبك النشط!" : "Active tracking session restored!",
+        AppState.selectedLang === 'ar' 
+          ? `مرحباً بعودتك! تم استئناف جلسة طلبك لـ ${AppState.customerName} 🔥` 
+          : `Welcome back! Resumed ordering session for ${AppState.customerName} 🔥`,
         'ready'
       );
-    } else {
-      AppState.activeOrderId = null;
-      saveToLocalStorage();
     }
-  } else if (AppState.phoneNumber && AppState.customerName) {
-    // Restore current phone digits cache for profile editing
-    currentPhoneDigits = AppState.phoneNumber;
-    renderPhoneDisplay();
-    switchMobileScreen('mobile-menu');
-    showToastNotification(
-      AppState.selectedLang === 'ar' 
-        ? `مرحباً بعودتك! تم استئناف جلسة طلبك لـ ${AppState.customerName} 🔥` 
-        : `Welcome back! Resumed ordering session for ${AppState.customerName} 🔥`,
-      'ready'
-    );
   }
 }
 

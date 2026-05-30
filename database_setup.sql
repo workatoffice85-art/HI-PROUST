@@ -152,3 +152,7 @@ INSERT INTO public.settings (key, value)
 VALUES ('total_tables', '12')
 ON CONFLICT (key) DO NOTHING;
 
+-- 7. DATABASE MIGRATION FOR PENDING CUSTOMER EDITS
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS pending_update JSONB DEFAULT NULL;
+
+
