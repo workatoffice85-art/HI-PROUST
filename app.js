@@ -365,181 +365,192 @@ async function loadFromLocalStorage() {
     AppState.totalTables = parseInt(storedTotalTables) || 12;
   }
 
-  // Cloud Database Integration (Supabase)
+  // Cloud Database Integration (Supabase initial sync)
   if (supabaseClient) {
-    if (!AppState.staticDataLoaded) {
-      // 0. Fetch Settings
-      try {
-        const { data: setVal } = await supabaseClient
-          .from('settings')
-          .select('*')
-          .eq('key', 'total_tables')
-          .single();
-        if (setVal && setVal.value) {
-          AppState.totalTables = parseInt(setVal.value) || 12;
-        }
-      } catch (err) {
-        console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
-      }
-      
-      // 0.1 Fetch Physical Tables
-      try {
-        const { data: tablesData } = await supabaseClient
-          .from('tables')
-          .select('*');
-        if (tablesData) {
-          AppState.tables = tablesData;
-          AppState.tablesLoaded = true;
-        }
-      } catch (err) {
-        console.warn("Supabase tables fetch error:", err);
-      }
-      // A. Fetch Categories
-      try {
-        const { data: catData, error: catError } = await supabaseClient
-          .from('categories')
-          .select('*');
-        if (catData && catData.length > 0) {
-          const dbCats = catData.map(c => ({
-            id: c.id,
-            nameAr: c.name_ar,
-            nameEn: c.name_en
-          }));
-          // Ensure "All Items" (all) category is always at the top of customer categories
-          CATEGORIES = [{ id: "all", nameAr: "كل الأطباق", nameEn: "All Items" }, ...dbCats];
-        }
-      } catch (err) {
-        console.warn("Supabase categories fetch error:", err);
-      }
+    await syncCloudDatabase();
+  }
+}
 
-      // B. Fetch Products
-      try {
-        const { data: prodData, error: prodError } = await supabaseClient
-          .from('products')
-          .select('*');
-        if (prodData && prodData.length > 0) {
-          MENU = prodData.map(p => {
-            const existingSeed = MENU.find(m => m.id === p.id);
-            return {
-              id: p.id,
-              cat: p.category_id,
-              nameAr: p.name_ar,
-              nameEn: p.name_en,
-              descAr: p.description_ar || '',
-              descEn: p.description_en || '',
-              price: Number(p.price),
-              spicy: p.is_spicy,
-              bestSeller: p.is_bestseller,
-              svg: p.image_url ? (p.image_url.startsWith('<svg') ? p.image_url : '') : (existingSeed ? existingSeed.svg : ''),
-              imageUrl: p.image_url ? (!p.image_url.startsWith('<svg') ? p.image_url : null) : null
-            };
-          });
-        }
-      } catch (err) {
-        console.warn("Supabase products fetch error:", err);
-      }
+async function syncCloudDatabase() {
+  if (!supabaseClient) return;
 
-      AppState.staticDataLoaded = true;
+  if (!AppState.staticDataLoaded) {
+    // 0. Fetch Settings
+    try {
+      const { data: setVal } = await supabaseClient
+        .from('settings')
+        .select('*')
+        .eq('key', 'total_tables')
+        .single();
+      if (setVal && setVal.value) {
+        AppState.totalTables = parseInt(setVal.value) || 12;
+      }
+    } catch (err) {
+      console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
+    }
+    
+    // 0.1 Fetch Physical Tables
+    try {
+      const { data: tablesData } = await supabaseClient
+        .from('tables')
+        .select('*');
+      if (tablesData) {
+        AppState.tables = tablesData;
+        AppState.tablesLoaded = true;
+      }
+    } catch (err) {
+      console.warn("Supabase tables fetch error:", err);
+    }
+    
+    // A. Fetch Categories
+    try {
+      const { data: catData, error: catError } = await supabaseClient
+        .from('categories')
+        .select('*');
+      if (catData && catData.length > 0) {
+        const dbCats = catData.map(c => ({
+          id: c.id,
+          nameAr: c.name_ar,
+          nameEn: c.name_en
+        }));
+        // Ensure "All Items" (all) category is always at the top of customer categories
+        CATEGORIES = [{ id: "all", nameAr: "كل الأطباق", nameEn: "All Items" }, ...dbCats];
+      }
+    } catch (err) {
+      console.warn("Supabase categories fetch error:", err);
     }
 
-    // C. Fetch Orders (Joined query for relational schema)
+    // B. Fetch Products
     try {
-      const { data, error } = await supabaseClient
-        .from('orders')
-        .select(`
-          id,
-          status,
-          subtotal,
-          tax,
-          total,
-          notes,
-          delivery_type,
-          payment_method,
-          pending_update,
-          audit_log,
-          created_at,
-          customers ( id, name, phone ),
-          tables ( id, table_number ),
-          order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
-        `)
-        .order('created_at', { ascending: true });
-        
-      if (data) {
-        const dbOrders = data.map(o => {
-          const items = (o.order_items || []).map(item => {
-            return {
-              id: item.product_id,
-              nameAr: item.products ? item.products.name_ar : '',
-              nameEn: item.products ? item.products.name_en : '',
-              qty: item.quantity,
-              price: Number(item.price)
-            };
-          });
-
+      const { data: prodData, error: prodError } = await supabaseClient
+        .from('products')
+        .select('*');
+      if (prodData && prodData.length > 0) {
+        MENU = prodData.map(p => {
+          const existingSeed = MENU.find(m => m.id === p.id);
           return {
-            id: o.id,
-            table: o.tables ? o.tables.table_number : 0,
-            name: o.customers ? o.customers.name : '',
-            phone: o.customers ? o.customers.phone : '',
-            items: items,
-            subtotal: Number(o.subtotal),
-            tax: Number(o.tax),
-            total: Number(o.total),
-            notes: o.notes,
-            type: o.delivery_type,
-            status: o.status,
-            paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
-            paymentMethod: o.payment_method,
-            pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-            auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-            timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-            elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+            id: p.id,
+            cat: p.category_id,
+            nameAr: p.name_ar,
+            nameEn: p.name_en,
+            descAr: p.description_ar || '',
+            descEn: p.description_en || '',
+            price: Number(p.price),
+            spicy: p.is_spicy,
+            bestSeller: p.is_bestseller,
+            svg: p.image_url ? (p.image_url.startsWith('<svg') ? p.image_url : '') : (existingSeed ? existingSeed.svg : ''),
+            imageUrl: p.image_url ? (!p.image_url.startsWith('<svg') ? p.image_url : null) : null
+          };
+        });
+      }
+    } catch (err) {
+      console.warn("Supabase products fetch error:", err);
+    }
+
+    AppState.staticDataLoaded = true;
+  }
+
+  // C. Fetch Orders (Joined query for relational schema)
+  try {
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select(`
+        id,
+        status,
+        subtotal,
+        tax,
+        total,
+        notes,
+        delivery_type,
+        payment_method,
+        pending_update,
+        audit_log,
+        created_at,
+        customers ( id, name, phone ),
+        tables ( id, table_number ),
+        order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
+      `)
+      .order('created_at', { ascending: true });
+      
+    if (data) {
+      const dbOrders = data.map(o => {
+        const items = (o.order_items || []).map(item => {
+          return {
+            id: item.product_id,
+            nameAr: item.products ? item.products.name_ar : '',
+            nameEn: item.products ? item.products.name_en : '',
+            qty: item.quantity,
+            price: Number(item.price)
           };
         });
 
-        // Preserve our local active order if it is not returned by the database yet!
-        const localActiveOrder = AppState.activeOrderId ? AppState.orders.find(o => o.id === AppState.activeOrderId) : null;
-        
-        AppState.orders = dbOrders;
-        
-        if (localActiveOrder && !AppState.orders.some(o => o.id === localActiveOrder.id)) {
-          AppState.orders.push(localActiveOrder);
-        }
-        
-        // Trigger UI updates in real-time across all views
-        if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
-        if (AppState.activeRole === 'admin-view') {
-          renderAdminDashboard();
-          if (typeof renderAdminMenuManage === 'function') renderAdminMenuManage();
-        }
-        if (AppState.activeRole === 'cashier-view') {
-          renderCashierOrdersTable();
-          updateCashierMetrics();
-          if (selectedOrderForCheckout) {
-            const refreshedOrder = AppState.orders.find(o => o.id === selectedOrderForCheckout.id);
-            if (refreshedOrder) {
-              selectedOrderForCheckout = refreshedOrder;
-              renderCashierCheckoutSidebar();
-            }
+        return {
+          id: o.id,
+          table: o.tables ? o.tables.table_number : 0,
+          name: o.customers ? o.customers.name : '',
+          phone: o.customers ? o.customers.phone : '',
+          items: items,
+          subtotal: Number(o.subtotal),
+          tax: Number(o.tax),
+          total: Number(o.total),
+          notes: o.notes,
+          type: o.delivery_type,
+          status: o.status,
+          paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
+          paymentMethod: o.payment_method,
+          pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+          auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+          timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+          elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+        };
+      });
+
+      // Preserve our local active order if it is not returned by the database yet!
+      const localActiveOrder = AppState.activeOrderId ? AppState.orders.find(o => o.id === AppState.activeOrderId) : null;
+      
+      AppState.orders = dbOrders;
+      
+      if (localActiveOrder && !AppState.orders.some(o => o.id === localActiveOrder.id)) {
+        AppState.orders.push(localActiveOrder);
+      }
+
+      // Sync database orders to local storage to unify states
+      localStorage.setItem('HIPROUST_ORDERS', JSON.stringify(AppState.orders));
+      
+      // Trigger UI updates in real-time across all views
+      if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
+      if (AppState.activeRole === 'admin-view') {
+        renderAdminDashboard();
+        if (typeof renderAdminMenuManage === 'function') renderAdminMenuManage();
+      }
+      if (AppState.activeRole === 'cashier-view') {
+        renderCashierOrdersTable();
+        updateCashierMetrics();
+        if (selectedOrderForCheckout) {
+          const refreshedOrder = AppState.orders.find(o => o.id === selectedOrderForCheckout.id);
+          if (refreshedOrder) {
+            selectedOrderForCheckout = refreshedOrder;
+            renderCashierCheckoutSidebar();
           }
-        }
-        if (AppState.activeRole === 'customer-view') {
-          if (AppState.activeOrderId) {
-            const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
-            if (trackingOrder) {
-              updateLiveTrackingUI(trackingOrder);
-            }
-          }
-          const catContainer = document.getElementById('categories-scroll');
-          if (catContainer) renderMenuCategories();
-          const menuContainer = document.getElementById('menu-catalog');
-          if (menuContainer) renderMenuCatalog();
         }
       }
-    } catch (err) {
-      console.warn("Supabase fetch error, fallback to local:", err);
+      if (AppState.activeRole === 'customer-view') {
+        if (AppState.activeOrderId) {
+          const trackingOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+          if (trackingOrder) {
+            updateLiveTrackingUI(trackingOrder);
+          }
+        }
+        const catContainer = document.getElementById('categories-scroll');
+        if (catContainer) renderMenuCategories();
+        const menuContainer = document.getElementById('menu-catalog');
+        if (menuContainer) renderMenuCatalog();
+      }
     }
+  } catch (err) {
+    console.warn("Supabase fetch error, fallback to local:", err);
   }
+}
 }
 
 // ==========================================================================
@@ -4568,7 +4579,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .channel('public:orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
           console.log('Database changes detected via Supabase Realtime on orders!', payload);
-          loadFromLocalStorage();
+          syncCloudDatabase();
         })
         .subscribe();
 
@@ -4578,7 +4589,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
           console.log('Database changes detected via Supabase Realtime on products!', payload);
           AppState.staticDataLoaded = false;
-          loadFromLocalStorage();
+          syncCloudDatabase();
         })
         .subscribe();
 
@@ -4588,7 +4599,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, payload => {
           console.log('Database changes detected via Supabase Realtime on categories!', payload);
           AppState.staticDataLoaded = false;
-          loadFromLocalStorage();
+          syncCloudDatabase();
         })
         .subscribe();
     }
@@ -4600,6 +4611,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // even if Supabase websocket/realtime changes are not turned on or have replication disabled in the dashboard.
 setInterval(() => {
   if (supabaseClient) {
-    loadFromLocalStorage();
+    syncCloudDatabase();
   }
 }, 3000);
