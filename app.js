@@ -1227,10 +1227,13 @@ function triggerPlaceOrder() {
       audit_log: []
     };
 
+    // Capture cart snapshot immediately to avoid async race condition before cart is cleared!
+    const cartSnapshot = AppState.cart.map(c => ({ id: c.id, qty: c.qty }));
+
     supabaseClient.from('orders').insert(orderPayload).then(res => {
       console.log('Order persisted to Supabase:', res);
       
-      const itemsPayload = AppState.cart.map(c => {
+      const itemsPayload = cartSnapshot.map(c => {
         const menuItem = MENU.find(m => m.id === c.id);
         return {
           order_id: newOrder.id,
@@ -1328,6 +1331,9 @@ function triggerSaveOrderEdits() {
         }
       }
 
+      // Capture cart snapshot immediately to avoid async race condition before cart is cleared!
+      const cartSnapshot = AppState.cart.map(c => ({ id: c.id, qty: c.qty }));
+
       supabaseClient
         .from('orders')
         .update({
@@ -1349,7 +1355,7 @@ function triggerSaveOrderEdits() {
             .delete()
             .eq('order_id', orderId)
             .then(() => {
-              const itemsPayload = AppState.cart.map(c => {
+              const itemsPayload = cartSnapshot.map(c => {
                 const menuItem = MENU.find(m => m.id === c.id);
                 return {
                   order_id: orderId,
