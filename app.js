@@ -1140,7 +1140,36 @@ function renderCartSummary() {
 // ==========================================================================
 // 10. PLACING THE ORDER (TRIGGER REAL-TIME STATE SYNC)
 // ==========================================================================
-function triggerPlaceOrder() {
+async function getNextUniqueOrderId() {
+  if (!supabaseClient) {
+    const localMax = AppState.orders.length > 0 ? Math.max(...AppState.orders.map(o => parseInt(o.id.slice(1)) || 100)) : 100;
+    return "A" + (localMax + 1);
+  }
+  
+  try {
+    const { data } = await supabaseClient
+      .from('orders')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .limit(30);
+      
+    if (data && data.length > 0) {
+      const idNumbers = data.map(o => {
+        const numPart = o.id.slice(1);
+        return parseInt(numPart) || 100;
+      });
+      const dbMax = Math.max(...idNumbers, 100);
+      return "A" + (dbMax + 1);
+    }
+  } catch (err) {
+    console.warn("Error fetching highest order ID from Supabase:", err);
+  }
+  
+  const localMax = AppState.orders.length > 0 ? Math.max(...AppState.orders.map(o => parseInt(o.id.slice(1)) || 100)) : 100;
+  return "A" + (localMax + 1);
+}
+
+async function triggerPlaceOrder() {
   if (AppState.cart.length === 0) return;
 
   // Block placing a new order if they already have an active order
@@ -1162,18 +1191,26 @@ function triggerPlaceOrder() {
 
   const L = TRANSLATIONS[AppState.selectedLang];
 
+  // Disable checkout button and show spinner to prevent duplicate checkout clicks
+  const checkoutBtn = document.getElementById('btn-cart-checkout');
+  let originalBtnHTML = "";
+  if (checkoutBtn) {
+    originalBtnHTML = checkoutBtn.innerHTML;
+    checkoutBtn.disabled = true;
+    checkoutBtn.style.opacity = '0.7';
+    checkoutBtn.innerHTML = `<span><i class="fa-solid fa-circle-notch fa-spin"></i> ${
+      AppState.selectedLang === 'ar' ? 'جاري إرسال الطلب...' : 'Placing order...'
+    }</span>`;
+  }
+
   // Calculate prices
   let subtotal = 0;
   AppState.cart.forEach(c => {
     const item = MENU.find(m => m.id === c.id);
-    subtotal += (item.price * c.qty);
+    if (item) subtotal += (item.price * c.qty);
   });
   const tax = subtotal * 0.15;
   const total = subtotal + tax;
-
-  // Generate unique order ID (e.g. A102)
-  const orderIdNum = AppState.orders.length > 0 ? parseInt(AppState.orders[AppState.orders.length - 1].id.slice(1)) + 1 : 101;
-  const orderId = "A" + orderIdNum;
 
   // Formulate Order items mapping
   const orderItems = AppState.cart.map(c => {
@@ -1190,31 +1227,14 @@ function triggerPlaceOrder() {
   // Read notes
   const notes = document.getElementById('cart-notes').value.trim();
 
-  // Create new order record
-  const newOrder = {
-    id: orderId,
-    table: AppState.selectedTable,
-    name: AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل طاولة " : "Guest Table ") + AppState.selectedTable,
-    phone: AppState.phoneNumber || "01000000000",
-    items: orderItems,
-    subtotal: subtotal,
-    tax: tax,
-    total: total,
-    notes: notes,
-    type: AppState.deliveryType,
-    status: 'pending_payment', // initially pending_payment as per flow!
-    paymentStatus: 'unpaid', // 'unpaid' | 'paid'
-    paymentMethod: null,
-    timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    elapsedSeconds: 0
-  };
+  // Capture cart snapshot immediately to avoid async race condition before cart is cleared!
+  const cartSnapshot = AppState.cart.map(c => ({ id: c.id, qty: c.qty }));
 
-  // Add order to unified state
-  AppState.orders.push(newOrder);
-  AppState.activeOrderId = orderId;
-  saveToLocalStorage();
+  let success = false;
+  let attempts = 0;
+  let chosenOrderId = "";
+  let newOrder = null;
 
-  // Cloud Sync (Supabase Relational Inserts)
   if (supabaseClient) {
     let tableUuid = null;
     if (AppState.deliveryType === 'dine-in' && AppState.tables && AppState.tables.length > 0) {
@@ -1224,42 +1244,142 @@ function triggerPlaceOrder() {
       }
     }
 
-    const orderPayload = {
-      id: newOrder.id,
-      customer_id: AppState.customerId,
-      table_id: tableUuid,
-      status: 'pending_payment',
-      subtotal: newOrder.subtotal,
-      tax: newOrder.tax,
-      total: newOrder.total,
-      notes: newOrder.notes,
-      delivery_type: newOrder.type,
-      payment_method: null,
-      pending_update: null,
-      audit_log: []
-    };
+    while (attempts < 3 && !success) {
+      attempts++;
+      chosenOrderId = await getNextUniqueOrderId();
 
-    // Capture cart snapshot immediately to avoid async race condition before cart is cleared!
-    const cartSnapshot = AppState.cart.map(c => ({ id: c.id, qty: c.qty }));
+      const orderPayload = {
+        id: chosenOrderId,
+        customer_id: AppState.customerId,
+        table_id: tableUuid,
+        status: 'pending_payment',
+        subtotal: subtotal,
+        tax: tax,
+        total: total,
+        notes: notes,
+        delivery_type: AppState.deliveryType,
+        payment_method: null,
+        pending_update: null,
+        audit_log: []
+      };
 
-    supabaseClient.from('orders').insert(orderPayload).then(res => {
-      console.log('Order persisted to Supabase:', res);
-      
-      const itemsPayload = cartSnapshot.map(c => {
-        const menuItem = MENU.find(m => m.id === c.id);
-        return {
-          order_id: newOrder.id,
-          product_id: c.id,
-          quantity: c.qty,
-          price: menuItem.price
-        };
-      });
+      try {
+        const { error: insertError } = await supabaseClient.from('orders').insert(orderPayload);
+        if (insertError) {
+          // If duplicate key error (code 23505), try again with a newly generated ID
+          if (insertError.code === '23505') {
+            console.warn(`Collision on order ID ${chosenOrderId}. Retrying sequence... (Attempt ${attempts}/3)`);
+            continue;
+          } else {
+            throw insertError;
+          }
+        }
 
-      supabaseClient.from('order_items').insert(itemsPayload).then(itemsRes => {
-        console.log('Order items persisted to Supabase:', itemsRes);
-      });
-    });
+        // Successfully inserted order, now insert items
+        const itemsPayload = cartSnapshot.map(c => {
+          const menuItem = MENU.find(m => m.id === c.id);
+          return {
+            order_id: chosenOrderId,
+            product_id: c.id,
+            quantity: c.qty,
+            price: menuItem.price
+          };
+        });
+
+        const { error: itemsError } = await supabaseClient.from('order_items').insert(itemsPayload);
+        if (itemsError) throw itemsError;
+
+        success = true;
+      } catch (dbErr) {
+        console.error("Database insert error during checkout:", dbErr);
+      }
+    }
+
+    // Try a mathematically unique fallback ID suffix if all 3 attempts failed due to concurrent sequence conflicts
+    if (!success) {
+      const randomSuffix = Math.floor(Math.random() * 90 + 10); // 10 to 99
+      const baseId = await getNextUniqueOrderId();
+      chosenOrderId = `${baseId}-${randomSuffix}`;
+      console.warn(`Applying mathematically unique fallback order ID: ${chosenOrderId}`);
+
+      const orderPayload = {
+        id: chosenOrderId,
+        customer_id: AppState.customerId,
+        table_id: tableUuid,
+        status: 'pending_payment',
+        subtotal: subtotal,
+        tax: tax,
+        total: total,
+        notes: notes,
+        delivery_type: AppState.deliveryType,
+        payment_method: null,
+        pending_update: null,
+        audit_log: []
+      };
+
+      try {
+        const { error: insertError } = await supabaseClient.from('orders').insert(orderPayload);
+        if (insertError) throw insertError;
+
+        const itemsPayload = cartSnapshot.map(c => {
+          const menuItem = MENU.find(m => m.id === c.id);
+          return {
+            order_id: chosenOrderId,
+            product_id: c.id,
+            quantity: c.qty,
+            price: menuItem.price
+          };
+        });
+
+        const { error: itemsError } = await supabaseClient.from('order_items').insert(itemsPayload);
+        if (itemsError) throw itemsError;
+
+        success = true;
+      } catch (fatalErr) {
+        console.error("Fatal checkout insertion crash:", fatalErr);
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? "عذراً، حدث خطأ أثناء إرسال طلبك. يرجى المحاولة مرة أخرى."
+            : "Sorry, an error occurred while placing your order. Please try again.",
+          'ready'
+        );
+        if (checkoutBtn) {
+          checkoutBtn.disabled = false;
+          checkoutBtn.style.opacity = '1';
+          checkoutBtn.innerHTML = originalBtnHTML;
+        }
+        return;
+      }
+    }
+  } else {
+    // Local / Offline fallback
+    chosenOrderId = "A" + (AppState.orders.length > 0 ? Math.max(...AppState.orders.map(o => parseInt(o.id.slice(1)) || 100)) + 1 : 101);
+    success = true;
   }
+
+  // Create new order record for local state update
+  newOrder = {
+    id: chosenOrderId,
+    table: AppState.selectedTable,
+    name: AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل طاولة " : "Guest Table ") + AppState.selectedTable,
+    phone: AppState.phoneNumber || "01000000000",
+    items: orderItems,
+    subtotal: subtotal,
+    tax: tax,
+    total: total,
+    notes: notes,
+    type: AppState.deliveryType,
+    status: 'pending_payment',
+    paymentStatus: 'unpaid',
+    paymentMethod: null,
+    timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    elapsedSeconds: 0
+  };
+
+  // Add order to unified state
+  AppState.orders.push(newOrder);
+  AppState.activeOrderId = chosenOrderId;
+  saveToLocalStorage();
 
   // Play audio alert
   AudioSynthesizer.playNewOrderChime();
@@ -1267,15 +1387,24 @@ function triggerPlaceOrder() {
   // Trigger Toast Notification
   showToastNotification(
     AppState.selectedLang === 'ar' 
-      ? `تم إرسال طلبك بنجاح! رقم الطلب: ${orderId}` 
-      : `Order Placed Successfully! ID: ${orderId}`, 
+      ? `تم إرسال طلبك بنجاح! رقم الطلب: ${chosenOrderId}` 
+      : `Order Placed Successfully! ID: ${chosenOrderId}`, 
     'new'
   );
 
   // Clean active customer cart
   AppState.cart = [];
-  document.getElementById('cart-notes').value = '';
+  if (document.getElementById('cart-notes')) {
+    document.getElementById('cart-notes').value = '';
+  }
   
+  // Restore checkout button to original text & state
+  if (checkoutBtn) {
+    checkoutBtn.disabled = false;
+    checkoutBtn.style.opacity = '1';
+    checkoutBtn.innerHTML = originalBtnHTML;
+  }
+
   // Update Live Tracking UI in Mobile View
   updateLiveTrackingUI(newOrder);
   switchMobileScreen('mobile-tracking');
