@@ -155,4 +155,23 @@ ON CONFLICT (key) DO NOTHING;
 -- 7. DATABASE MIGRATION FOR PENDING CUSTOMER EDITS
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS pending_update JSONB DEFAULT NULL;
 
+-- 8. CREATE PROFILES DATABASE TABLE FOR GUEST ACCOUNTS
+CREATE TABLE IF NOT EXISTS public.profiles (
+  phone_number TEXT NOT NULL PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- Enable RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Allow all public operations for rapid prototyping
+DROP POLICY IF EXISTS "Allow all public profiles operations" ON public.profiles;
+CREATE POLICY "Allow all public profiles operations"
+ON public.profiles
+FOR ALL
+USING (true)
+WITH CHECK (true);
+
+
 

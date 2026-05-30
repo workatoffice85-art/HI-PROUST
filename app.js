@@ -432,7 +432,7 @@ async function loadFromLocalStorage() {
         .order('created_at', { ascending: true });
         
       if (data) {
-        AppState.orders = data.map(o => ({
+        const dbOrders = data.map(o => ({
           id: o.id,
           table: o.table_number,
           name: o.customer_name,
@@ -451,6 +451,15 @@ async function loadFromLocalStorage() {
           timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
           elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
         }));
+
+        // Preserve our local active order if it is not returned by the database yet!
+        const localActiveOrder = AppState.activeOrderId ? AppState.orders.find(o => o.id === AppState.activeOrderId) : null;
+        
+        AppState.orders = dbOrders;
+        
+        if (localActiveOrder && !AppState.orders.some(o => o.id === localActiveOrder.id)) {
+          AppState.orders.push(localActiveOrder);
+        }
         
         // Trigger UI updates in real-time across all views
         if (AppState.activeRole === 'kitchen-view') renderKDSBoard();
@@ -2329,119 +2338,173 @@ function renderCustomerProfileScreen() {
   nameLabel.innerText = AppState.customerName || (AppState.selectedLang === 'ar' ? "عميل مميز" : "Valued Customer");
   phoneLabel.innerText = AppState.phoneNumber || "01XXXXXXXXX";
 
-  // Calculate order metrics & loyalty progress
-  const customerOrders = AppState.orders.filter(o => o.phone === AppState.phoneNumber);
-  const completedOrdersCount = customerOrders.filter(o => o.status === 'completed' || o.paymentStatus === 'paid').length;
-  
-  // Loyalty progress rules: completed orders count modulo 5
-  const currentProgress = completedOrdersCount % 5;
-  const progressPercent = (currentProgress / 5) * 100;
-  
-  document.getElementById('profile-loyalty-bar').style.width = `${progressPercent}%`;
-  document.getElementById('profile-loyalty-percent').innerText = `${progressPercent}%`;
-  
-  const countLabel = AppState.selectedLang === 'ar' 
-    ? `الطلبات الحالية: ${currentProgress} / 5` 
-    : `Current orders: ${currentProgress} / 5`;
-  document.getElementById('profile-loyalty-count').innerText = countLabel;
-
-  // Set Loyalty level title based on order count
-  const tierBadge = document.getElementById('profile-loyalty-tier');
-  if (completedOrdersCount >= 10) {
-    tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الماسية 💎' : 'Diamond Tier 💎';
-    tierBadge.style.backgroundColor = '#E2E8F0';
-    tierBadge.style.color = '#1E293B';
-  } else if (completedOrdersCount >= 5) {
-    tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة البلاتينية 👑' : 'Platinum Tier 👑';
-    tierBadge.style.backgroundColor = '#1E293B';
-    tierBadge.style.color = '#F1F5F9';
-  } else {
-    tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الذهبية 🌟' : 'Gold Tier 🌟';
-    tierBadge.style.backgroundColor = '#121214';
-    tierBadge.style.color = '#FFC107';
-  }
-
-  // Render Past Orders
-  historyContainer.innerHTML = '';
   const L = TRANSLATIONS[AppState.selectedLang];
 
-  if (customerOrders.length === 0) {
-    historyContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; background-color: #fff; border-radius: 12px; border: 1px dashed var(--light-border); width: 100%;">
-        <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--light-border); margin-bottom: 8px;"></i>
-        <p style="font-size: 0.75rem;">${AppState.selectedLang === 'ar' ? 'لا يوجد لديك طلبات سابقة بعد!' : 'No past orders registered yet!'}</p>
-      </div>
-    `;
-    return;
-  }
+  // Show a beautiful loading spinner inside history container
+  historyContainer.innerHTML = `
+    <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; width: 100%;">
+      <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.8rem; color: var(--primary-red); margin-bottom: 8px;"></i>
+      <p style="font-size: 0.75rem;">${AppState.selectedLang === 'ar' ? 'جاري تحميل وجباتك السابقة...' : 'Loading your past meals...'}</p>
+    </div>
+  `;
 
-  // Render reverse history
-  customerOrders.slice().reverse().forEach(o => {
-    const card = document.createElement('div');
-    card.className = 'history-order-card';
-    card.style.backgroundColor = '#fff';
-    card.style.border = '1px solid rgba(0,0,0,0.03)';
-    card.style.borderRadius = '12px';
-    card.style.padding = '12px';
-    card.style.width = '100%';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '6px';
-    card.style.textAlign = 'right';
+  const renderHistoryUI = (customerOrders) => {
+    const completedOrdersCount = customerOrders.filter(o => o.status === 'completed' || o.paymentStatus === 'paid').length;
+    
+    // Loyalty progress rules: completed orders count modulo 5
+    const currentProgress = completedOrdersCount % 5;
+    const progressPercent = (currentProgress / 5) * 100;
+    
+    const loyaltyBar = document.getElementById('profile-loyalty-bar');
+    if (loyaltyBar) loyaltyBar.style.width = `${progressPercent}%`;
+    
+    const loyaltyPercent = document.getElementById('profile-loyalty-percent');
+    if (loyaltyPercent) loyaltyPercent.innerText = `${progressPercent}%`;
+    
+    const countLabel = AppState.selectedLang === 'ar' 
+      ? `الطلبات الحالية: ${currentProgress} / 5` 
+      : `Current orders: ${currentProgress} / 5`;
+    const loyaltyCount = document.getElementById('profile-loyalty-count');
+    if (loyaltyCount) loyaltyCount.innerText = countLabel;
 
-    const itemsSummary = o.items.map(itm => {
-      const name = AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn;
-      return `${itm.qty}x ${name}`;
-    }).join(' ، ');
-
-    card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--light-border); padding-bottom: 6px; direction: ltr;">
-        <span style="font-weight: 800; color: var(--primary-red); font-size: 0.8rem;">${o.id}</span>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">${o.timestamp}</span>
-      </div>
-      <p style="font-size: 0.7rem; color: var(--text-dark); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px;"><strong>الوجبات:</strong> ${itemsSummary}</p>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; direction: ltr;">
-        <span style="font-weight: 800; font-size: 0.85rem; color: var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</span>
-        <button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
-          <i class="fa-solid fa-rotate-left"></i>
-          <span>${AppState.selectedLang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
-        </button>
-      </div>
-    `;
-    historyContainer.appendChild(card);
-  });
-
-  // Attach Reorder action buttons
-  historyContainer.querySelectorAll('.btn-reorder').forEach(btn => {
-    btn.addEventListener('click', () => {
-      AudioSynthesizer.playBeep();
-      const orderId = btn.getAttribute('data-id');
-      const targetOrder = AppState.orders.find(o => o.id === orderId);
-      if (targetOrder) {
-        // Clear current active cart
-        AppState.cart = [];
-        // Add items back into cart
-        targetOrder.items.forEach(itm => {
-          AppState.cart.push({
-            id: itm.id,
-            qty: itm.qty
-          });
-        });
-        
-        // Show success notification and direct route to cart!
-        showToastNotification(
-          AppState.selectedLang === 'ar'
-            ? 'تمت إضافة جميع عناصر الوجبة السابقة لسلتك!'
-            : 'Reordered! All items added to your cart!',
-          'ready'
-        );
-        
-        renderCartSummary();
-        renderMenuCatalog();
-        switchMobileScreen('mobile-cart');
+    // Set Loyalty level title based on order count
+    const tierBadge = document.getElementById('profile-loyalty-tier');
+    if (tierBadge) {
+      if (completedOrdersCount >= 10) {
+        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الماسية 💎' : 'Diamond Tier 💎';
+        tierBadge.style.backgroundColor = '#E2E8F0';
+        tierBadge.style.color = '#1E293B';
+      } else if (completedOrdersCount >= 5) {
+        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة البلاتينية 👑' : 'Platinum Tier 👑';
+        tierBadge.style.backgroundColor = '#1E293B';
+        tierBadge.style.color = '#F1F5F9';
+      } else {
+        tierBadge.innerText = AppState.selectedLang === 'ar' ? 'الطبقة الذهبية 🌟' : 'Gold Tier 🌟';
+        tierBadge.style.backgroundColor = '#121214';
+        tierBadge.style.color = '#FFC107';
       }
+    }
+
+    // Render list
+    historyContainer.innerHTML = '';
+    
+    if (customerOrders.length === 0) {
+      historyContainer.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; background-color: #fff; border-radius: 12px; border: 1px dashed var(--light-border); width: 100%;">
+          <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--light-border); margin-bottom: 8px;"></i>
+          <p style="font-size: 0.75rem;">${AppState.selectedLang === 'ar' ? 'لا يوجد لديك طلبات سابقة بعد!' : 'No past orders registered yet!'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Render reverse chronological history
+    customerOrders.forEach(o => {
+      const card = document.createElement('div');
+      card.className = 'history-order-card';
+      card.style.backgroundColor = '#fff';
+      card.style.border = '1px solid rgba(0,0,0,0.03)';
+      card.style.borderRadius = '12px';
+      card.style.padding = '12px';
+      card.style.width = '100%';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '6px';
+      card.style.textAlign = 'right';
+
+      const itemsSummary = o.items.map(itm => {
+        const name = AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn;
+        return `${itm.qty}x ${name}`;
+      }).join(' ، ');
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--light-border); padding-bottom: 6px; direction: ltr;">
+          <span style="font-weight: 800; color: var(--primary-red); font-size: 0.8rem;">${o.id}</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">${o.timestamp}</span>
+        </div>
+        <p style="font-size: 0.7rem; color: var(--text-dark); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px;"><strong>الوجبات:</strong> ${itemsSummary}</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; direction: ltr;">
+          <span style="font-weight: 800; font-size: 0.85rem; color: var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</span>
+          <button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>${AppState.selectedLang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
+          </button>
+        </div>
+      `;
+      historyContainer.appendChild(card);
     });
-  });
+
+    // Attach Reorder action buttons
+    historyContainer.querySelectorAll('.btn-reorder').forEach(btn => {
+      btn.addEventListener('click', () => {
+        AudioSynthesizer.playBeep();
+        const orderId = btn.getAttribute('data-id');
+        const targetOrder = customerOrders.find(o => o.id === orderId);
+        if (targetOrder) {
+          // Clear current active cart
+          AppState.cart = [];
+          // Add items back into cart
+          targetOrder.items.forEach(itm => {
+            AppState.cart.push({
+              id: itm.id,
+              qty: itm.qty
+            });
+          });
+          
+          showToastNotification(
+            AppState.selectedLang === 'ar'
+              ? 'تمت إضافة جميع عناصر الوجبة السابقة لسلتك!'
+              : 'Reordered! All items added to your cart!',
+            'ready'
+          );
+          
+          renderCartSummary();
+          renderMenuCatalog();
+          switchMobileScreen('mobile-cart');
+        }
+      });
+    });
+  };
+
+  if (supabaseClient && AppState.phoneNumber) {
+    supabaseClient
+      .from('orders')
+      .select('*')
+      .eq('phone_number', AppState.phoneNumber)
+      .order('created_at', { ascending: false })
+      .then(res => {
+        if (res.data) {
+          const fetchedOrders = res.data.map(o => ({
+            id: o.id,
+            table: o.table_number,
+            name: o.customer_name,
+            phone: o.phone_number,
+            items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+            subtotal: Number(o.subtotal),
+            tax: Number(o.tax),
+            total: Number(o.total),
+            notes: o.notes,
+            type: o.delivery_type,
+            status: o.status,
+            paymentStatus: o.payment_status,
+            paymentMethod: o.payment_method,
+            pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+            auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+            timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+            elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+          }));
+          renderHistoryUI(fetchedOrders);
+        } else {
+          renderHistoryUI([]);
+        }
+      })
+      .catch(err => {
+        console.warn("Profiles history fetch failed, using memory:", err);
+        renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+      });
+  } else {
+    renderHistoryUI(AppState.orders.filter(o => o.phone === AppState.phoneNumber).slice().reverse());
+  }
 }
 
 // ==========================================================================
@@ -3070,7 +3133,7 @@ function initCustomerView() {
         }
       };
 
-      if (supabaseClient) {
+      const checkOrdersTableFallback = () => {
         supabaseClient
           .from('orders')
           .select('*')
@@ -3084,7 +3147,7 @@ function initCustomerView() {
               const activeDbOrder = res.data.find(o => o.status !== 'completed');
 
               if (activeDbOrder) {
-                // 1. Dynamic active order restore
+                // Restore active order
                 const o = activeDbOrder;
                 const restoredOrder = {
                   id: o.id,
@@ -3125,7 +3188,7 @@ function initCustomerView() {
                   'ready'
                 );
               } else {
-                // 2. Profile auto-match from previous order
+                // Profile auto-match
                 const latestOrder = res.data[0];
                 AppState.phoneNumber = currentPhoneDigits;
                 AppState.customerName = latestOrder.customer_name;
@@ -3148,10 +3211,102 @@ function initCustomerView() {
             }
           })
           .catch(err => {
-            console.warn("Error verifying phone via Supabase:", err);
             btnPhoneSubmit.disabled = false;
             btnPhoneSubmit.innerHTML = originalHtml;
             localVerificationFallback();
+          });
+      };
+
+      if (supabaseClient) {
+        // Query profiles table first
+        supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('phone_number', currentPhoneDigits)
+          .single()
+          .then(profileRes => {
+            if (profileRes.data) {
+              // Profile found in database profiles table!
+              AppState.phoneNumber = currentPhoneDigits;
+              AppState.customerName = profileRes.data.customer_name;
+              saveToLocalStorage();
+
+              // Fetch if they have any active orders as well in background
+              supabaseClient
+                .from('orders')
+                .select('*')
+                .eq('phone_number', currentPhoneDigits)
+                .order('created_at', { ascending: false })
+                .then(orderRes => {
+                  btnPhoneSubmit.disabled = false;
+                  btnPhoneSubmit.innerHTML = originalHtml;
+
+                  if (orderRes.data && orderRes.data.length > 0) {
+                    const activeDbOrder = orderRes.data.find(o => o.status !== 'completed');
+                    if (activeDbOrder) {
+                      const o = activeDbOrder;
+                      const restoredOrder = {
+                        id: o.id,
+                        table: o.table_number,
+                        name: o.customer_name,
+                        phone: o.phone_number,
+                        items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+                        subtotal: Number(o.subtotal),
+                        tax: Number(o.tax),
+                        total: Number(o.total),
+                        notes: o.notes,
+                        type: o.delivery_type,
+                        status: o.status,
+                        paymentStatus: o.payment_status,
+                        paymentMethod: o.payment_method,
+                        pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+                        auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+                        timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+                        elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+                      };
+
+                      AppState.activeOrderId = restoredOrder.id;
+                      const idx = AppState.orders.findIndex(x => x.id === restoredOrder.id);
+                      if (idx >= 0) AppState.orders[idx] = restoredOrder;
+                      else AppState.orders.push(restoredOrder);
+
+                      saveToLocalStorage();
+                      updateLiveTrackingUI(restoredOrder);
+                      switchMobileScreen('mobile-tracking');
+                      
+                      showToastNotification(
+                        AppState.selectedLang === 'ar'
+                          ? `تم العثور على طلب نشط! جاري الانتقال لصفحة التتبع ⚡`
+                          : `Active order found! Redirecting to live tracking ⚡`,
+                        'ready'
+                      );
+                    } else {
+                      switchMobileScreen('mobile-menu');
+                    }
+                  } else {
+                    switchMobileScreen('mobile-menu');
+                  }
+                })
+                .catch(err => {
+                  btnPhoneSubmit.disabled = false;
+                  btnPhoneSubmit.innerHTML = originalHtml;
+                  switchMobileScreen('mobile-menu');
+                });
+
+              showToastNotification(
+                AppState.selectedLang === 'ar'
+                  ? `مرحباً بعودتك يا ${profileRes.data.customer_name}! تم الدخول بنجاح 🔥`
+                  : `Welcome back, ${profileRes.data.customer_name}! Logged in successfully 🔥`,
+                'ready'
+              );
+            } else {
+              // Not in profiles, try checking orders table as a legacy fallback
+              checkOrdersTableFallback();
+            }
+          })
+          .catch(err => {
+            console.warn("Profiles query failed, falling back to orders:", err);
+            checkOrdersTableFallback();
           });
       } else {
         localVerificationFallback();
@@ -3159,7 +3314,7 @@ function initCustomerView() {
     });
   }
 
-  // Name submit
+  // Name submit with instant Supabase account profile creation
   const btnNameSubmit = document.getElementById('btn-name-submit');
   if (btnNameSubmit) {
     btnNameSubmit.addEventListener('click', () => {
@@ -3176,6 +3331,20 @@ function initCustomerView() {
       }
       AppState.customerName = nameVal;
       saveToLocalStorage();
+
+      // Create Account immediately in Supabase profiles!
+      if (supabaseClient) {
+        supabaseClient
+          .from('profiles')
+          .upsert({
+            phone_number: AppState.phoneNumber,
+            customer_name: AppState.customerName
+          })
+          .then(res => {
+            console.log('Account profile created in Supabase:', res);
+          });
+      }
+
       switchMobileScreen('mobile-menu');
     });
   }
@@ -3345,73 +3514,74 @@ function initCustomerView() {
     }
   });
 
-  // Restore tracking session from Supabase Cloud directly if activeOrderId is cached
+  // Restore tracking session from local cache or Supabase directly
   if (AppState.activeOrderId) {
-    if (supabaseClient) {
-      supabaseClient
-        .from('orders')
-        .select('*')
-        .eq('id', AppState.activeOrderId)
-        .single()
-        .then(res => {
-          if (res.data) {
-            const o = res.data;
-            const activeOrder = {
-              id: o.id,
-              table: o.table_number,
-              name: o.customer_name,
-              phone: o.phone_number,
-              items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-              subtotal: Number(o.subtotal),
-              tax: Number(o.tax),
-              total: Number(o.total),
-              notes: o.notes,
-              type: o.delivery_type,
-              status: o.status,
-              paymentStatus: o.payment_status,
-              paymentMethod: o.payment_method,
-              pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-              auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-              timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-              elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
-            };
-
-            const idx = AppState.orders.findIndex(x => x.id === activeOrder.id);
-            if (idx >= 0) AppState.orders[idx] = activeOrder;
-            else AppState.orders.push(activeOrder);
-
-            if (activeOrder.status !== 'completed') {
-              updateLiveTrackingUI(activeOrder);
-              switchMobileScreen('mobile-tracking');
-              showToastNotification(
-                AppState.selectedLang === 'ar' ? "تم استعادة جلسة تتبع طلبك النشط!" : "Active tracking session restored!",
-                'ready'
-              );
-            } else {
-              AppState.activeOrderId = null;
-              saveToLocalStorage();
-              restoreFallbackMenuSession();
-            }
-          } else {
-            AppState.activeOrderId = null;
-            saveToLocalStorage();
-            restoreFallbackMenuSession();
-          }
-        })
-        .catch(err => {
-          console.warn("Error restoring active order from Supabase:", err);
-          AppState.activeOrderId = null;
-          saveToLocalStorage();
-          restoreFallbackMenuSession();
-        });
-    } else {
-      const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
-      if (activeOrder && activeOrder.status !== 'completed') {
+    const activeOrder = AppState.orders.find(o => o.id === AppState.activeOrderId);
+    if (activeOrder) {
+      if (activeOrder.status !== 'completed') {
         updateLiveTrackingUI(activeOrder);
         switchMobileScreen('mobile-tracking');
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? "تم استعادة جلسة تتبع طلبك النشط!" : "Active tracking session restored!",
+          'ready'
+        );
       } else {
         AppState.activeOrderId = null;
         saveToLocalStorage();
+        restoreFallbackMenuSession();
+      }
+    } else {
+      // If not found locally, fetch from Supabase but do NOT clear activeOrderId unless we confirm it is completed!
+      if (supabaseClient) {
+        supabaseClient
+          .from('orders')
+          .select('*')
+          .eq('id', AppState.activeOrderId)
+          .single()
+          .then(res => {
+            if (res.data) {
+              const o = res.data;
+              const activeOrder = {
+                id: o.id,
+                table: o.table_number,
+                name: o.customer_name,
+                phone: o.phone_number,
+                items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+                subtotal: Number(o.subtotal),
+                tax: Number(o.tax),
+                total: Number(o.total),
+                notes: o.notes,
+                type: o.delivery_type,
+                status: o.status,
+                paymentStatus: o.payment_status,
+                paymentMethod: o.payment_method,
+                pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+                auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+                timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+                elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+              };
+
+              const idx = AppState.orders.findIndex(x => x.id === activeOrder.id);
+              if (idx >= 0) AppState.orders[idx] = activeOrder;
+              else AppState.orders.push(activeOrder);
+
+              if (activeOrder.status !== 'completed') {
+                updateLiveTrackingUI(activeOrder);
+                switchMobileScreen('mobile-tracking');
+              } else {
+                AppState.activeOrderId = null;
+                saveToLocalStorage();
+                restoreFallbackMenuSession();
+              }
+            } else {
+              restoreFallbackMenuSession();
+            }
+          })
+          .catch(err => {
+            console.warn("Error checking active order on startup:", err);
+            restoreFallbackMenuSession();
+          });
+      } else {
         restoreFallbackMenuSession();
       }
     }
