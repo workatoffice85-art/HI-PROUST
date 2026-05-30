@@ -685,14 +685,29 @@ function updateLanguageUI() {
   document.getElementById('txt-cart-checkout-btn').innerText = L.btnCartCheckout;
 
   // Delivery type selection translations
-  document.getElementById('txt-title-type').innerText = L.titleType;
-  document.getElementById('txt-prompt-type').innerText = L.promptType;
-  document.getElementById('txt-desc-type').innerText = L.descType;
-  document.getElementById('txt-type-dine-title').innerText = L.typeDineTitle;
-  document.getElementById('txt-type-dine-desc').innerText = L.typeDineDesc;
-  document.getElementById('txt-type-take-title').innerText = L.typeTakeTitle;
-  document.getElementById('txt-type-take-desc').innerText = L.typeTakeDesc;
-  document.getElementById('txt-place-order-btn').innerText = L.btnPlaceOrder;
+  const titleType = document.getElementById('txt-title-type');
+  if (titleType) titleType.innerText = L.titleType;
+  
+  const promptType = document.getElementById('txt-prompt-type');
+  if (promptType) promptType.innerText = L.promptType;
+  
+  const descType = document.getElementById('txt-desc-type');
+  if (descType) descType.innerText = L.descType;
+  
+  const typeDineTitle = document.getElementById('txt-type-dine-title');
+  if (typeDineTitle) typeDineTitle.innerText = L.typeDineTitle;
+  
+  const typeDineDesc = document.getElementById('txt-type-dine-desc');
+  if (typeDineDesc) typeDineDesc.innerText = L.typeDineDesc;
+  
+  const typeTakeTitle = document.getElementById('txt-type-take-title');
+  if (typeTakeTitle) typeTakeTitle.innerText = L.typeTakeTitle;
+  
+  const typeTakeDesc = document.getElementById('txt-type-take-desc');
+  if (typeTakeDesc) typeTakeDesc.innerText = L.typeTakeDesc;
+  
+  const placeOrderBtn = document.getElementById('txt-place-order-btn');
+  if (placeOrderBtn) placeOrderBtn.innerText = L.btnPlaceOrder;
 
   // Live order tracker translations
   document.getElementById('txt-title-track').innerText = L.titleTrack;
@@ -2400,77 +2415,7 @@ function triggerAutoMockOrder() {
 }
 
 function prePopulateHistoricalOrders() {
-  if (AppState.orders.length > 0) return; // avoid duplicate seed populations
-
-  // Seed 1: A Paid & Completed Dine-in Order
-  AppState.orders.push({
-    id: "A098",
-    table: 4,
-    name: "أحمد بن فهد",
-    phone: "01088776655",
-    items: [
-      { id: "br-01", nameAr: "هاي بروستد عادي (٤ قطع)", nameEn: "Hi Broast Normal (4 Pcs)", qty: 2, price: 24.00 },
-      { id: "sd-01", nameAr: "بطاطس مقلية ذهبية سوبر", nameEn: "Golden French Fries Super", qty: 1, price: 7.00 },
-      { id: "bv-01", nameAr: "بيبسي بارد ومنعش", nameEn: "Pepsi Cold & Refreshing", qty: 2, price: 4.00 }
-    ],
-    subtotal: 63.00,
-    tax: 9.45,
-    total: 72.45,
-    notes: "بدون ثومية",
-    type: "dine-in",
-    status: "completed",
-    paymentStatus: "paid",
-    paymentMethod: "mada",
-    timestamp: "09:12 م",
-    elapsedSeconds: 450
-  });
-
-  // Seed 2: An Unpaid Preparing Takeaway Order
-  AppState.orders.push({
-    id: "A099",
-    table: 1,
-    name: "منيرة السديري",
-    phone: "01133221100",
-    items: [
-      { id: "bg-01", nameAr: "ساندوتش دجاج كريسبي ميجا", nameEn: "Mighty Crispy Chicken Burger", qty: 1, price: 18.00 },
-      { id: "rc-01", nameAr: "أرز ريزو مع قطع ستربس مقرمشة", nameEn: "Rizo Rice with Strips", qty: 1, price: 15.00 },
-      { id: "bv-02", nameAr: "ماء نقي ومبرد", nameEn: "Pure Cold Water", qty: 1, price: 2.00 }
-    ],
-    subtotal: 35.00,
-    tax: 5.25,
-    total: 40.25,
-    notes: "",
-    type: "takeaway",
-    status: "preparing",
-    paymentStatus: "paid",
-    paymentMethod: "mada",
-    timestamp: "09:48 م",
-    elapsedSeconds: 110
-  });
-
-  // Seed 3: An Unpaid New Dine-in Order
-  AppState.orders.push({
-    id: "A100",
-    table: 6,
-    name: "سلطان العجمي",
-    phone: "01255443322",
-    items: [
-      { id: "bk-01", nameAr: "وجبة عائلية سوبر (٨ قطع)", nameEn: "Super Family Bucket (8 Pcs)", qty: 1, price: 48.00 },
-      { id: "sd-02", nameAr: "علبة ثومية هاي بروست إضافية", nameEn: "Extra Special Garlic Dip", qty: 2, price: 3.00 }
-    ],
-    subtotal: 54.00,
-    tax: 8.10,
-    total: 62.10,
-    notes: "زيادة خبز كايزر",
-    type: "dine-in",
-    status: "new",
-    paymentStatus: "unpaid",
-    paymentMethod: null,
-    timestamp: "09:55 م",
-    elapsedSeconds: 22
-  });
-
-  saveToLocalStorage();
+  // Mock seeding disabled as requested to run purely on real database orders
 }
 
 // ==========================================================================
@@ -2563,6 +2508,17 @@ function renderCustomerProfileScreen() {
         return `${itm.qty}x ${name}`;
       }).join(' ، ');
 
+      const isActive = o.status !== 'delivered';
+      const buttonHtml = isActive 
+        ? `<button class="btn-track-active" data-id="${o.id}" style="background-color: var(--primary-red); border: none; color: #fff; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span>${AppState.selectedLang === 'ar' ? 'تتبع الطلب' : 'Track'}</span>
+          </button>`
+        : `<button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>${AppState.selectedLang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
+          </button>`;
+
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--light-border); padding-bottom: 6px; direction: ltr;">
           <span style="font-weight: 800; color: var(--primary-red); font-size: 0.8rem;">${o.id}</span>
@@ -2571,10 +2527,7 @@ function renderCustomerProfileScreen() {
         <p style="font-size: 0.7rem; color: var(--text-dark); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px;"><strong>الوجبات:</strong> ${itemsSummary}</p>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; direction: ltr;">
           <span style="font-weight: 800; font-size: 0.85rem; color: var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</span>
-          <button class="btn-reorder" data-id="${o.id}" style="background-color: var(--primary-yellow); border: none; color: #121214; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; direction: rtl;">
-            <i class="fa-solid fa-rotate-left"></i>
-            <span>${AppState.selectedLang === 'ar' ? 'إعادة طلب' : 'Reorder'}</span>
-          </button>
+          ${buttonHtml}
         </div>
       `;
       historyContainer.appendChild(card);
@@ -2610,35 +2563,77 @@ function renderCustomerProfileScreen() {
         }
       });
     });
+
+    // Attach Track action buttons
+    historyContainer.querySelectorAll('.btn-track-active').forEach(btn => {
+      btn.addEventListener('click', () => {
+        AudioSynthesizer.playBeep();
+        const orderId = btn.getAttribute('data-id');
+        const targetOrder = customerOrders.find(o => o.id === orderId);
+        if (targetOrder) {
+          AppState.activeOrderId = targetOrder.id;
+          saveToLocalStorage();
+          updateLiveTrackingUI(targetOrder);
+          switchMobileScreen('mobile-tracking');
+        }
+      });
+    });
   };
 
-  if (supabaseClient && AppState.phoneNumber) {
+  if (supabaseClient && AppState.customerId) {
     supabaseClient
       .from('orders')
-      .select('*')
-      .eq('phone_number', AppState.phoneNumber)
+      .select(`
+        id,
+        status,
+        subtotal,
+        tax,
+        total,
+        notes,
+        delivery_type,
+        payment_method,
+        pending_update,
+        audit_log,
+        created_at,
+        customers ( id, name, phone ),
+        tables ( id, table_number ),
+        order_items ( id, quantity, price, product_id, products ( id, name_ar, name_en ) )
+      `)
+      .eq('customer_id', AppState.customerId)
       .order('created_at', { ascending: false })
       .then(res => {
         if (res.data) {
-          const fetchedOrders = res.data.map(o => ({
-            id: o.id,
-            table: o.table_number,
-            name: o.customer_name,
-            phone: o.phone_number,
-            items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-            subtotal: Number(o.subtotal),
-            tax: Number(o.tax),
-            total: Number(o.total),
-            notes: o.notes,
-            type: o.delivery_type,
-            status: o.status,
-            paymentStatus: o.payment_status,
-            paymentMethod: o.payment_method,
-            pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
-            auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
-            timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-            elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
-          }));
+          const fetchedOrders = res.data.map(o => {
+            const items = (o.order_items || []).map(item => {
+              return {
+                id: item.product_id,
+                nameAr: item.products ? item.products.name_ar : '',
+                nameEn: item.products ? item.products.name_en : '',
+                qty: item.quantity,
+                price: Number(item.price)
+              };
+            });
+
+            return {
+              id: o.id,
+              table: o.tables ? o.tables.table_number : 0,
+              name: o.customers ? o.customers.name : '',
+              phone: o.customers ? o.customers.phone : '',
+              items: items,
+              subtotal: Number(o.subtotal),
+              tax: Number(o.tax),
+              total: Number(o.total),
+              notes: o.notes,
+              type: o.delivery_type,
+              status: o.status,
+              paymentStatus: o.status === 'pending_payment' ? 'unpaid' : 'paid',
+              paymentMethod: o.payment_method,
+              pendingUpdate: typeof o.pending_update === 'string' ? JSON.parse(o.pending_update) : o.pending_update,
+              auditLog: typeof o.audit_log === 'string' ? JSON.parse(o.audit_log) : (o.audit_log || []),
+              timestamp: new Date(o.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+              elapsedSeconds: Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000)
+            };
+          });
           renderHistoryUI(fetchedOrders);
         } else {
           renderHistoryUI([]);
@@ -3212,7 +3207,10 @@ function initCustomerView() {
   document.querySelectorAll('#phone-keypad button').forEach(btn => {
     btn.addEventListener('click', () => {
       const char = btn.innerText;
-      if (btn.classList.contains('delete') || btn.querySelector('i')) {
+      if (btn.id === 'btn-phone-confirm') {
+        const btnPhoneSubmit = document.getElementById('btn-phone-submit');
+        if (btnPhoneSubmit) btnPhoneSubmit.click();
+      } else if (btn.classList.contains('delete') || btn.querySelector('i')) {
         handleKeypadPress('del');
       } else if (char !== "") {
         handleKeypadPress(char);
@@ -4548,7 +4546,7 @@ function renderAdminDashboard() {
 window.addEventListener('DOMContentLoaded', () => {
   // Load local data and mock pre-populations
   loadFromLocalStorage().then(() => {
-    prePopulateHistoricalOrders();
+    // prePopulateHistoricalOrders mock seeding disabled as requested
 
     // Select initialization branch based on active body ID
     const bodyId = document.body.id;
