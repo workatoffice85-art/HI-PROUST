@@ -711,79 +711,86 @@
       </div>
     </div>
   </div>
-
   <!-- MODAL: ADD / EDIT PRODUCT -->
   <div class="receipt-overlay" id="modal-product-editor" style="display: none; justify-content: center; align-items: center; z-index: 99999;">
-    <div class="receipt-modal" style="max-width: 650px; width: 90%; background: var(--light-card); border: 3px solid var(--primary-yellow); border-radius: 20px; padding: 24px; box-shadow: 0 25px 60px rgba(198,40,40,0.18); direction: rtl; text-align: right;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--dark-border); padding-bottom: 12px; margin-bottom: 20px;">
-        <h3 id="product-editor-title" style="color: var(--primary-red); font-weight: 800; font-size: 1.15rem;"><i class="fa-solid fa-utensils"></i> إضافة صنف وجبة جديد</h3>
-        <button id="btn-close-product-modal" style="background: none; border: none; color: var(--text-light-muted); font-size: 1.25rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+    <div class="receipt-modal" style="max-width: 520px; width: 95%; background: var(--light-card); border: 3px solid var(--primary-yellow); border-radius: 20px; padding: 16px 20px; box-shadow: 0 25px 60px rgba(198,40,40,0.18); direction: rtl; text-align: right;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--dark-border); padding-bottom: 8px; margin-bottom: 12px;">
+        <h3 id="product-editor-title" style="color: var(--primary-red); font-weight: 800; font-size: 1.1rem;"><i class="fa-solid fa-utensils"></i> إضافة صنف وجبة جديد</h3>
+        <button id="btn-close-product-modal" style="background: none; border: none; color: var(--text-light-muted); font-size: 1.2rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <form id="form-product-editor" style="display: flex; flex-direction: column; gap: 14px;">
+      <form id="form-product-editor" style="display: flex; flex-direction: column; gap: 10px;">
         <input type="hidden" id="edit-product-id" value="">
         
-        <div>
-          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالعربية:</label>
-          <input type="text" class="custom-text-input" id="edit-prod-name-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; text-align: right;" required>
-        </div>
-        <div>
-          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالإنجليزية:</label>
-          <input type="text" class="custom-text-input" id="edit-prod-name-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; text-align: left;" required>
-        </div>
-
-        <div>
-          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الوصف بالعربية:</label>
-          <textarea class="note-textarea" id="edit-prod-desc-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; height: 110px; resize: vertical; min-height: 80px; font-size: 0.85rem; line-height: 1.45;" placeholder="اكتب وصفاً شهياً وموجزاً للوجبة..."></textarea>
-        </div>
-        <div>
-          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الوصف بالإنجليزية:</label>
-          <textarea class="note-textarea" id="edit-prod-desc-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; height: 110px; resize: vertical; min-height: 80px; font-size: 0.85rem; line-height: 1.45;" placeholder="Short delicious description..."></textarea>
+        <!-- Two Column Row: Names -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالعربية:</label>
+            <input type="text" class="custom-text-input" id="edit-prod-name-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; text-align: right; font-size: 0.85rem; height: 38px; margin-bottom: 0;" required>
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الاسم بالإنجليزية:</label>
+            <input type="text" class="custom-text-input" id="edit-prod-name-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; text-align: left; font-size: 0.85rem; height: 38px; margin-bottom: 0;" required>
+          </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 14px;">
+        <!-- Two Column Row: Descriptions -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الوصف بالعربية:</label>
+            <textarea class="note-textarea" id="edit-prod-desc-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; height: 75px; resize: vertical; min-height: 55px; font-size: 0.8rem; line-height: 1.4;" placeholder="اكتب وصفاً شهياً وموجزاً للوجبة..."></textarea>
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الوصف بالإنجليزية:</label>
+            <textarea class="note-textarea" id="edit-prod-desc-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; height: 75px; resize: vertical; min-height: 55px; font-size: 0.8rem; line-height: 1.4;" placeholder="Short delicious description..."></textarea>
+          </div>
+        </div>
+
+        <!-- Two Column Row: Price & Category -->
+        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px;">
           <div>
             <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">السعر بالريال (SAR):</label>
-            <input type="number" step="0.01" class="custom-text-input" id="edit-prod-price" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; text-align: center;" required>
+            <input type="number" step="0.01" class="custom-text-input" id="edit-prod-price" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; text-align: center; font-size: 0.85rem; height: 38px; margin-bottom: 0;" required>
           </div>
           <div>
             <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">قسم المنيو:</label>
-            <select id="edit-prod-category" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 10px; border-radius: 10px; width: 100%; font-weight: 700; height: 42px;" required>
+            <select id="edit-prod-category" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 10px; border-radius: 8px; width: 100%; font-weight: 700; height: 38px; font-size: 0.8rem;" required>
               <!-- Populated dynamically -->
             </select>
           </div>
         </div>
 
-        <div style="display: flex; gap: 24px; align-items: center; padding: 6px 0;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-light); cursor: pointer;">
-            <input type="checkbox" id="edit-prod-spicy" style="width: 16px; height: 16px; accent-color: var(--primary-red);">
+        <!-- Checkboxes -->
+        <div style="display: flex; gap: 24px; align-items: center; padding: 2px 0;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-light); cursor: pointer;">
+            <input type="checkbox" id="edit-prod-spicy" style="width: 15px; height: 15px; accent-color: var(--primary-red);">
             <span>وجبة حارة سبايسي 🌶️</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-light); cursor: pointer;">
-            <input type="checkbox" id="edit-prod-bestseller" style="width: 16px; height: 16px; accent-color: var(--primary-yellow);">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-light); cursor: pointer;">
+            <input type="checkbox" id="edit-prod-bestseller" style="width: 15px; height: 15px; accent-color: var(--primary-yellow);">
             <span>الأكثر طلباً بالمطعم ⭐</span>
           </label>
         </div>
 
-        <!-- IMAGE PICKER AND PREVIEW -->
+        <!-- Image Picker -->
         <div>
-          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 6px; display: block;">صورة الوجبة:</label>
-          <div style="display: flex; gap: 14px; align-items: center;">
-            <div id="product-image-preview-box" style="width: 80px; height: 80px; border-radius: 12px; border: 2px dashed var(--dark-border); background-color: var(--dark-input); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; position: relative;">
-              <span style="font-size: 1.5rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">صورة الوجبة:</label>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div id="product-image-preview-box" style="width: 60px; height: 60px; border-radius: 8px; border: 2px dashed var(--dark-border); background-color: var(--dark-input); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; position: relative;">
+              <span style="font-size: 1.25rem; color: var(--text-light-muted);"><i class="fa-solid fa-image"></i></span>
             </div>
             
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
               <input type="file" id="edit-prod-file" accept="image/*" style="display: none;">
-              <button type="button" class="sim-btn" id="btn-trigger-file-upload" style="width: 100%; padding: 8px; font-size: 0.75rem; background-color: var(--primary-yellow-light); border-color: var(--primary-yellow); color: var(--text-dark);">
+              <button type="button" class="sim-btn" id="btn-trigger-file-upload" style="width: 100%; padding: 6px; font-size: 0.75rem; background-color: var(--primary-yellow-light); border-color: var(--primary-yellow); color: var(--text-dark); font-weight: 800; border-radius: 6px;">
                 <i class="fa-solid fa-cloud-arrow-up"></i> رفع صورة من الجهاز
               </button>
-              <input type="text" class="custom-text-input" id="edit-prod-url" placeholder="أو أدخل رابط الصورة المباشر هنا..." style="background: var(--dark-input); border-color: var(--dark-border); color: var(--text-light); padding: 6px 10px; border-radius: 8px; font-size: 0.7rem; width: 100%;">
+              <input type="text" class="custom-text-input" id="edit-prod-url" placeholder="أو أدخل رابط الصورة المباشر هنا..." style="background: var(--dark-input); border-color: var(--dark-border); color: var(--text-light); padding: 6px 10px; border-radius: 8px; font-size: 0.7rem; width: 100%; text-align: right; margin-bottom: 0; height: 32px;">
             </div>
           </div>
         </div>
 
-        <button type="submit" class="btn-primary-mobile" style="margin-top: 10px; padding: 12px; font-size: 0.9rem; background: linear-gradient(135deg, var(--color-ready) 0%, #059669 100%); border-color: rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(16,185,129,0.25);">
+        <button type="submit" class="btn-primary-mobile" style="margin-top: 4px; padding: 10px; font-size: 0.85rem; background: linear-gradient(135deg, var(--color-ready) 0%, #059669 100%); border-color: rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(16,185,129,0.25); border-radius: 12px;">
           <i class="fa-solid fa-floppy-disk"></i> حفظ الصنف وتحديث المنيو
         </button>
       </form>
