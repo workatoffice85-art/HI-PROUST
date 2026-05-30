@@ -2587,6 +2587,7 @@ function initCustomerView() {
       const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
       if (pastOrder) {
         AppState.customerName = pastOrder.name;
+        saveToLocalStorage(); // Instant save of profile cache
         showToastNotification(
           AppState.selectedLang === 'ar'
             ? `مرحباً بعودتك يا ${pastOrder.name}! تم فتح ملفك الشخصي بنجاح 🔥`
@@ -2617,6 +2618,7 @@ function initCustomerView() {
         return;
       }
       AppState.customerName = nameVal;
+      saveToLocalStorage(); // Instant save of profile cache
       switchMobileScreen('mobile-menu');
     });
   }
