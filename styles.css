@@ -1227,7 +1227,7 @@ main {
   gap: 4px;
 }
 
-.kds-live-badge span {
+.kds-live-badge span:first-child {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -2419,37 +2419,53 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
   display: flex;
   align-items: center;
   gap: 10px;
-  background-color: rgba(255,255,255,0.05);
-  border: 1px solid var(--dark-border);
-  padding: 6px 12px;
+  background-color: rgba(255, 255, 255, 0.15); /* Premium glassmorphism */
+  border: 1px solid rgba(255, 255, 255, 0.25); /* Sleek light border */
+  padding: 6px 14px;
   border-radius: 20px;
-  color: #fff;
-  font-size: 0.8rem;
+  color: #ffffff;
+  font-size: 0.82rem;
   font-weight: 700;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 #cashier-body .active-staff-header-badge {
-  background-color: rgba(0,0,0,0.03);
-  border: 1px solid var(--light-border);
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   color: var(--text-dark);
+  box-shadow: none;
 }
 
 .active-staff-header-badge .avatar-circle {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .active-staff-header-badge .btn-logout {
   background: none;
   border: none;
-  color: var(--primary-red);
+  color: var(--primary-yellow); /* Gorgeous brand yellow for high contrast on red header */
   cursor: pointer;
   padding: 0 4px;
-  font-size: 0.95rem;
-  transition: opacity 0.15s ease;
+  font-size: 1rem;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .active-staff-header-badge .btn-logout:hover {
-  opacity: 0.7;
+  color: #ffffff; /* Turns bright white on hover */
+  transform: scale(1.15);
+}
+
+#cashier-body .active-staff-header-badge .btn-logout {
+  color: var(--primary-red); /* Keep red for light Cashier header */
+}
+
+#cashier-body .active-staff-header-badge .btn-logout:hover {
+  color: var(--primary-red-hover);
+  transform: scale(1.15);
 }
 
 /* Vertical Timeline Audit log rendering */
