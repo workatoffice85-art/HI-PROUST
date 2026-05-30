@@ -2332,8 +2332,8 @@ function renderAdminMenuManage() {
       if (cat.id === 'all') return;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="font-weight: 700; color: var(--text-light);">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
-        <td style="text-align: center;">
+        <td style="font-weight: 700; color: var(--text-light); text-align: right; padding: 12px 8px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
+        <td style="text-align: center; padding: 12px 8px;">
           <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
             <button class="sim-btn edit-cat-btn" data-id="${cat.id}" style="padding: 4px 10px; font-size: 0.7rem; background-color: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark); font-weight: 800; border-radius: 6px;">
               <i class="fa-solid fa-pen-to-square"></i> تعديل
