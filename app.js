@@ -317,6 +317,16 @@ function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_PHONE_NUMBER', AppState.phoneNumber || '');
   localStorage.setItem('HIPROUST_SELECTED_TABLE', AppState.selectedTable || 1);
   localStorage.setItem('HIPROUST_DELIVERY_TYPE', AppState.deliveryType || 'dine-in');
+  
+  if (AppState.phoneNumber && AppState.customerName) {
+    let profiles = {};
+    const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
+    if (cachedProfiles) {
+      try { profiles = JSON.parse(cachedProfiles); } catch(e) {}
+    }
+    profiles[AppState.phoneNumber] = AppState.customerName;
+    localStorage.setItem('HIPROUST_PROFILES', JSON.stringify(profiles));
+  }
 }
 
 async function loadFromLocalStorage() {
@@ -1159,6 +1169,59 @@ function updateLiveTrackingUI(order) {
 
   // Set Order ID
   document.getElementById('track-order-id').innerText = order.id;
+
+  // Populate items summary card
+  const itemsContainer = document.getElementById('tracking-items-summary');
+  if (itemsContainer) {
+    itemsContainer.innerHTML = '';
+    
+    // Add title
+    const titleDiv = document.createElement('div');
+    titleDiv.style.fontWeight = 'bold';
+    titleDiv.style.fontSize = '0.85rem';
+    titleDiv.style.color = 'var(--primary-red)';
+    titleDiv.style.borderBottom = '1px dashed var(--light-border)';
+    titleDiv.style.paddingBottom = '6px';
+    titleDiv.style.marginBottom = '8px';
+    titleDiv.innerText = AppState.selectedLang === 'ar' ? 'تفاصيل طلبك المقرمش:' : 'Your Crispy Order Details:';
+    itemsContainer.appendChild(titleDiv);
+
+    // Add items
+    order.items.forEach(itm => {
+      const itmRow = document.createElement('div');
+      itmRow.style.display = 'flex';
+      itmRow.style.justifyContent = 'space-between';
+      itmRow.style.fontSize = '0.75rem';
+      itmRow.style.color = 'var(--text-dark)';
+      itmRow.style.marginBottom = '4px';
+      
+      const qtyAndName = `<span>${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}</span>`;
+      const priceText = `<span>${(itm.price * itm.qty).toFixed(2)} ${L.sar}</span>`;
+      
+      itmRow.innerHTML = `${qtyAndName}${priceText}`;
+      itemsContainer.appendChild(itmRow);
+    });
+
+    // Add divider
+    const divider = document.createElement('div');
+    divider.style.borderTop = '1px dashed var(--light-border)';
+    divider.style.margin = '8px 0';
+    itemsContainer.appendChild(divider);
+
+    // Add total row
+    const totalRow = document.createElement('div');
+    totalRow.style.display = 'flex';
+    totalRow.style.justifyContent = 'space-between';
+    totalRow.style.fontWeight = '800';
+    totalRow.style.fontSize = '0.85rem';
+    totalRow.style.color = 'var(--text-dark)';
+    
+    totalRow.innerHTML = `
+      <span>${AppState.selectedLang === 'ar' ? 'المجموع الإجمالي:' : 'Total Amount:'}</span>
+      <span style="color: var(--primary-red);">${order.total.toFixed(2)} ${L.sar}</span>
+    `;
+    itemsContainer.appendChild(totalRow);
+  }
 
   // Timeline Step Status Adjustments
   const stepPlaced = document.getElementById('track-step-placed');
@@ -2269,7 +2332,7 @@ function renderAdminMenuManage() {
       if (cat.id === 'all') return;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="font-weight: 700; color: #fff;">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
+        <td style="font-weight: 700; color: var(--text-light);">${cat.nameAr} <span style="color: var(--text-light-muted); font-weight: normal; font-size: 0.75rem;">/ ${cat.nameEn}</span></td>
         <td style="text-align: center;">
           <button class="sim-btn delete-cat-btn" data-id="${cat.id}" style="background-color: rgba(239, 68, 68, 0.1); border-color: var(--color-new); color: var(--color-new); padding: 4px 8px; font-size: 0.7rem;">
             <i class="fa-solid fa-trash"></i>
@@ -2328,21 +2391,21 @@ function renderAdminMenuManage() {
           }
 
           cardsHtml += `
-            <div class="admin-product-card" style="display: flex; gap: 12px; background-color: #18181C; border: 1px solid var(--dark-border); border-radius: 10px; padding: 12px; position: relative;">
+            <div class="admin-product-card" style="display: flex; gap: 12px; background-color: #ffffff; border: 1px solid var(--light-border); border-radius: 12px; padding: 12px; position: relative; box-shadow: var(--shadow-light); transition: all var(--transition-fast);">
               ${badgeHtml}
-              <div style="width: 70px; height: 70px; border-radius: 8px; background-color: #111113; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative;">
+              <div style="width: 70px; height: 70px; border-radius: 8px; background-color: var(--primary-yellow-light); overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; border: 1px solid var(--light-border);">
                 ${imageHtml}
               </div>
               <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; text-align: right;">
                 <div>
-                  <h5 style="font-size: 0.85rem; font-weight: bold; color: #fff; margin-bottom: 2px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-left: 55px;">${title}</h5>
-                  <p style="font-size: 0.7rem; color: var(--text-light-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${desc}</p>
+                  <h5 style="font-size: 0.85rem; font-weight: bold; color: var(--text-dark); margin-bottom: 2px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-left: 55px;">${title}</h5>
+                  <p style="font-size: 0.7rem; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${desc}</p>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; direction: ltr;">
-                  <div style="font-weight: 800; color: var(--primary-yellow); font-size: 0.85rem;">${p.price.toFixed(2)} <span style="font-size: 0.65rem;">SAR</span></div>
+                  <div style="font-weight: 800; color: var(--primary-red); font-size: 0.85rem;">${p.price.toFixed(2)} <span style="font-size: 0.65rem;">SAR</span></div>
                   <div style="display: flex; gap: 8px;">
-                    <button class="sim-btn edit-product-btn" data-id="${p.id}" style="padding: 4px 8px; font-size: 0.7rem;"><i class="fa-solid fa-pen-to-square"></i> تعديل</button>
-                    <button class="sim-btn delete-product-btn" data-id="${p.id}" style="padding: 4px 8px; font-size: 0.7rem; background-color: rgba(239, 68, 68, 0.1); border-color: var(--color-new); color: var(--color-new);"><i class="fa-solid fa-trash"></i></button>
+                    <button class="sim-btn edit-product-btn" data-id="${p.id}" style="padding: 4px 10px; font-size: 0.7rem; background-color: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark); font-weight: 800; border-radius: 6px;"><i class="fa-solid fa-pen-to-square"></i> تعديل</button>
+                    <button class="sim-btn delete-product-btn" data-id="${p.id}" style="padding: 4px 10px; font-size: 0.7rem; background-color: rgba(239, 68, 68, 0.1); border: 1px solid var(--color-new); color: var(--color-new); font-weight: 800; border-radius: 6px;"><i class="fa-solid fa-trash"></i></button>
                   </div>
                 </div>
               </div>
@@ -2353,8 +2416,8 @@ function renderAdminMenuManage() {
       }
 
       groupDiv.innerHTML = `
-        <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--primary-yellow); margin-bottom: 12px; border-bottom: 1px dashed var(--dark-border); padding-bottom: 8px; text-align: right;">
-          <i class="fa-solid fa-folder-open"></i> ${cat.nameAr} / ${cat.nameEn}
+        <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--primary-red); margin-bottom: 12px; border-bottom: 2px solid var(--primary-yellow); padding-bottom: 8px; text-align: right; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-folder-open" style="color: var(--primary-yellow);"></i> ${cat.nameAr} / ${cat.nameEn}
         </h4>
         ${productsHtml}
       `;
@@ -2583,9 +2646,27 @@ function initCustomerView() {
       }
       AppState.phoneNumber = currentPhoneDigits;
 
-      // Check if user exists in orders history
+      // Check if user exists in cached profiles map or orders history
+      let localProfiles = {};
+      const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
+      if (cachedProfiles) {
+        try { localProfiles = JSON.parse(cachedProfiles); } catch(e) {}
+      }
+
+      const cachedName = localProfiles[currentPhoneDigits];
       const pastOrder = AppState.orders.find(o => o.phone === currentPhoneDigits);
-      if (pastOrder) {
+
+      if (cachedName) {
+        AppState.customerName = cachedName;
+        saveToLocalStorage(); // Instant save of profile cache
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? `مرحباً بعودتك يا ${cachedName}! تم فتح ملفك الشخصي بنجاح 🔥`
+            : `Welcome back, ${cachedName}! Profile unlocked successfully 🔥`,
+          'ready'
+        );
+        switchMobileScreen('mobile-menu');
+      } else if (pastOrder) {
         AppState.customerName = pastOrder.name;
         saveToLocalStorage(); // Instant save of profile cache
         showToastNotification(
@@ -2651,20 +2732,22 @@ function initCustomerView() {
     });
   }
 
-  // New Order flow reset
+  // New Order flow reset (Retains user profile and returns straight to menu catalog)
   const btnNewOrder = document.getElementById('btn-track-new-order');
   if (btnNewOrder) {
     btnNewOrder.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
       AppState.activeOrderId = null;
-      AppState.customerName = "";
-      AppState.phoneNumber = "";
-      currentPhoneDigits = "";
-      document.getElementById('name-input').value = "";
-      renderPhoneDisplay();
-      checkTableQRParam();
       saveToLocalStorage();
-      switchMobileScreen('mobile-splash');
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' 
+          ? `بدء طلب جديد لحساب: ${AppState.customerName || 'عميلنا الكريم'} ✨` 
+          : `Started new order for: ${AppState.customerName || 'Valued Guest'} ✨`,
+        'ready'
+      );
+      
+      switchMobileScreen('mobile-menu');
     });
   }
 
@@ -3245,19 +3328,19 @@ function renderAdminQRCodes() {
   takeawayCard.style.flexDirection = 'column';
   takeawayCard.style.gap = '14px';
   takeawayCard.style.textAlign = 'center';
-  takeawayCard.style.padding = '16px';
-  takeawayCard.style.backgroundColor = '#18181C';
+  takeawayCard.style.backgroundColor = '#ffffff';
   takeawayCard.style.border = '2px solid #0284C7'; // Blue border for takeaway
+  takeawayCard.style.boxShadow = 'var(--shadow-light)';
 
   takeawayCard.innerHTML = `
     <div style="font-weight: 800; font-size: 0.95rem; color: #0284C7;"><i class="fa-solid fa-bag-shopping"></i> طلب سفري / Takeaway</div>
-    <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block;">
+    <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block; border: 1px solid #E2E8F0;">
       <img src="${takeawayQrApi}" alt="Takeaway QR" style="width: 130px; height: 130px; display: block;">
     </div>
-    <div style="font-size: 0.65rem; color: var(--text-light-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
+    <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
       ${takeawayUrl}
     </div>
-    <a href="${takeawayQrApi}" target="_blank" download="takeaway_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block; background-color: rgba(2, 132, 199, 0.15); border-color: #0284C7; color: #0284C7;">
+    <a href="${takeawayQrApi}" target="_blank" download="takeaway_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block; background-color: rgba(2, 132, 199, 0.15); border-color: #0284C7; color: #0284C7; font-weight: 800;">
       <i class="fa-solid fa-print"></i> طباعة / تحميل
     </a>
   `;
@@ -3275,18 +3358,19 @@ function renderAdminQRCodes() {
     card.style.gap = '14px';
     card.style.textAlign = 'center';
     card.style.padding = '16px';
-    card.style.backgroundColor = '#18181C';
-    card.style.border = '1px solid var(--dark-border)';
+    card.style.backgroundColor = '#ffffff';
+    card.style.border = '1px solid var(--light-border)';
+    card.style.boxShadow = 'var(--shadow-light)';
 
     card.innerHTML = `
-      <div style="font-weight: 800; font-size: 0.95rem; color: var(--primary-yellow);"><i class="fa-solid fa-chair"></i> طاولة ${i} / Table ${i}</div>
-      <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block;">
+      <div style="font-weight: 800; font-size: 0.95rem; color: var(--primary-red);"><i class="fa-solid fa-chair" style="color: var(--primary-yellow);"></i> طاولة ${i} / Table ${i}</div>
+      <div style="background-color: #fff; padding: 10px; border-radius: 12px; display: inline-block; border: 1px solid #E2E8F0;">
         <img src="${tableQrApi}" alt="Table ${i} QR" style="width: 130px; height: 130px; display: block;">
       </div>
-      <div style="font-size: 0.65rem; color: var(--text-light-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
+      <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; word-break: break-all; max-width: 150px;">
         ${tableUrl}
       </div>
-      <a href="${tableQrApi}" target="_blank" download="table_${i}_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block;">
+      <a href="${tableQrApi}" target="_blank" download="table_${i}_qr.png" class="sim-btn" style="padding: 6px 12px; font-size: 0.75rem; text-decoration: none; display: inline-block; background-color: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark); font-weight: 800; border-radius: 6px;">
         <i class="fa-solid fa-print"></i> طباعة / تحميل
       </a>
     `;
