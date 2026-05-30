@@ -21,8 +21,8 @@
     /* Sidebar Styling */
     .admin-sidebar {
       width: 280px;
-      background: linear-gradient(180deg, #111115 0%, #070709 100%);
-      border-left: 2px solid var(--dark-border);
+      background: linear-gradient(180deg, var(--primary-red) 0%, var(--primary-red-hover) 100%);
+      border-left: 2px solid var(--primary-yellow);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -32,7 +32,7 @@
 
     .admin-sidebar-brand {
       padding: 0 20px 20px 20px;
-      border-bottom: 1px solid var(--dark-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
       display: flex;
       align-items: center;
       gap: 12px;
@@ -49,7 +49,7 @@
     .admin-menu-item {
       padding: 12px 16px;
       border-radius: 12px;
-      color: var(--text-light-muted);
+      color: rgba(255, 255, 255, 0.75);
       font-weight: 700;
       font-size: 0.95rem;
       cursor: pointer;
@@ -62,14 +62,14 @@
 
     .admin-menu-item:hover {
       color: #fff;
-      background-color: rgba(255,255,255,0.03);
+      background-color: rgba(255, 255, 255, 0.1);
     }
 
     .admin-menu-item.active {
-      background: linear-gradient(135deg, var(--primary-red) 0%, #A51D1D 100%);
-      color: #fff;
-      box-shadow: 0 4px 15px rgba(198, 40, 40, 0.3);
-      border-color: rgba(255,255,255,0.05);
+      background: var(--primary-yellow);
+      color: #121214;
+      box-shadow: 0 4px 15px var(--primary-yellow-glow);
+      border-color: rgba(0,0,0,0.05);
     }
 
     .admin-menu-item i {
@@ -92,12 +92,13 @@
     }
 
     .admin-header {
-      background-color: #111115;
+      background: linear-gradient(135deg, var(--primary-red) 0%, var(--primary-red-hover) 100%);
       padding: 16px 28px;
-      border-bottom: 2px solid var(--primary-yellow);
+      border-bottom: 3px solid var(--primary-yellow);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 4px 20px rgba(198, 40, 40, 0.12);
     }
 
     .admin-title-wrap h1 {
@@ -108,7 +109,7 @@
 
     .admin-title-wrap p {
       font-size: 0.8rem;
-      color: var(--text-light-muted);
+      color: rgba(255, 255, 255, 0.85);
       margin-top: 2px;
     }
 
@@ -166,7 +167,7 @@
     .admin-metric-info .val {
       font-size: 1.8rem;
       font-weight: 900;
-      color: #fff;
+      color: var(--text-light);
       margin-top: 6px;
     }
 
@@ -226,7 +227,7 @@
     .admin-card-header h3 {
       font-size: 1.1rem;
       font-weight: 800;
-      color: #fff;
+      color: var(--text-light);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -282,11 +283,11 @@
       padding: 14px 16px;
       border-bottom: 1px solid var(--dark-border);
       font-size: 0.85rem;
-      color: #fff;
+      color: var(--text-light);
     }
 
     .admin-table tbody tr:hover {
-      background-color: rgba(255,255,255,0.01);
+      background-color: rgba(198, 40, 40, 0.03);
     }
 
     /* Order details modal inside admin overlay */
@@ -638,8 +639,8 @@
               تتيح لك هذه الإعدادات التحكم في عدد الطاولات النشطة بمطعم هاي بروست. سيقوم النظام تلقائياً بتحديث رموز الـ QR وإتاحة الطاولات للعملاء بناءً على هذا العدد.
             </p>
             <div style="display: flex; align-items: center; gap: 14px;">
-              <label style="font-size: 0.85rem; color: #fff; font-weight: bold;">عدد الطاولات النشطة:</label>
-              <input type="number" id="input-total-tables" min="1" max="50" value="12" style="background: #111113; border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 80px; text-align: center; font-weight: bold;">
+              <label style="font-size: 0.85rem; color: var(--text-light); font-weight: bold;">عدد الطاولات النشطة:</label>
+              <input type="number" id="input-total-tables" min="1" max="50" value="12" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: var(--text-light); padding: 8px 12px; border-radius: 8px; width: 80px; text-align: center; font-weight: bold;">
               <button class="sim-btn" id="btn-save-tables-count" style="background: linear-gradient(135deg, var(--primary-red) 0%, #A51D1D 100%); color: #fff; border: 1px solid rgba(255,255,255,0.05); padding: 8px 16px; font-weight: bold;">
                 <i class="fa-solid fa-floppy-disk"></i> حفظ وتحديث الطاولات
               </button>
@@ -664,13 +665,13 @@
           <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
           <path d="M 28 64 C 28 54, 40 54, 50 58 C 60 54, 72 54, 72 64 C 72 74, 50 78, 50 78" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
         </svg>
-        <h2 style="color: var(--primary-yellow); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
+        <h2 style="color: var(--primary-red); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
         <p style="font-size: 0.8rem; color: var(--text-light-muted); margin-top: 2px;">Hi Proust Staff Portal</p>
       </div>
 
       <!-- STEP 1: SELECT ACCOUNT PROFILE -->
       <div id="login-step-profile">
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
         <div class="staff-profiles-grid" id="staff-profiles-container">
           <!-- Populated dynamically via JS -->
         </div>
@@ -679,10 +680,10 @@
       <!-- STEP 2: PIN ENTRY -->
       <div id="login-step-pin" style="display: none;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; justify-content: space-between;">
-          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--dark-border); color: #fff;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
-          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-yellow);" id="selected-staff-display">المدير فهد</span>
+          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark);"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
+          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-red);" id="selected-staff-display">المدير فهد</span>
         </div>
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
         
         <!-- PIN Dots Display -->
         <div class="pin-dots-row" style="display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;">

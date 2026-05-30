@@ -16,22 +16,22 @@
   --primary-yellow-glow: rgba(255, 193, 7, 0.4);
   
   /* Neutral Palette - Light Mode */
-  --light-bg: #F4F6F9;
+  --light-bg: #FFFDF0;
   --light-card: #FFFFFF;
-  --light-border: #E4E7EB;
+  --light-border: #EAE6CD;
   --text-dark: #1E293B;
   --text-muted: #64748B;
-  --shadow-light: 0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 8px rgba(0, 0, 0, 0.02);
-  --shadow-hover: 0 20px 40px rgba(198, 40, 40, 0.1);
+  --shadow-light: 0 10px 30px rgba(198, 40, 40, 0.04), 0 2px 8px rgba(0, 0, 0, 0.02);
+  --shadow-hover: 0 20px 40px rgba(198, 40, 40, 0.15);
   
-  /* Neutral Palette - Dark Mode (KDS) */
-  --dark-bg: #0F0F12;
-  --dark-card: #18181C;
-  --dark-border: #2B2B33;
-  --dark-input: #222227;
-  --text-light: #F8FAFC;
-  --text-light-muted: #94A3B8;
-  --shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.3);
+  /* Neutral Palette - Dark Mode (KDS & Admin Unified Light-Theme) */
+  --dark-bg: #FFFDF0;
+  --dark-card: #FFFFFF;
+  --dark-border: #EAE6CD;
+  --dark-input: #FFFFFF;
+  --text-light: #1E293B;
+  --text-light-muted: #64748B;
+  --shadow-dark: 0 10px 30px rgba(198, 40, 40, 0.04), 0 2px 8px rgba(0, 0, 0, 0.02);
 
   /* Status Colors */
   --color-new: #EF4444;
@@ -81,16 +81,16 @@ body {
    Header & View Switcher
    ========================================================================== */
 header {
-  background: linear-gradient(135deg, #1E1E24 0%, #111115 100%);
+  background: linear-gradient(135deg, var(--primary-red) 0%, var(--primary-red-hover) 100%);
   color: #fff;
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 20px rgba(198, 40, 40, 0.15);
   z-index: 100;
   position: relative;
-  border-bottom: 2px solid var(--primary-yellow);
+  border-bottom: 3px solid var(--primary-yellow);
 }
 
 .brand-wrapper {
@@ -125,7 +125,7 @@ header {
 
 .brand-subtitle {
   font-size: 0.75rem;
-  color: var(--text-light-muted);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .view-switcher {
@@ -2265,9 +2265,9 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(7, 7, 9, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: radial-gradient(circle, rgba(255, 193, 7, 0.2) 0%, rgba(198, 40, 40, 0.45) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -2276,10 +2276,10 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
 }
 
 .staff-login-card {
-  background: linear-gradient(135deg, #18181C 0%, #101012 100%);
-  border: 2px solid var(--dark-border);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  border-radius: 24px;
+  background: var(--light-card);
+  border: 3px solid var(--primary-yellow);
+  box-shadow: 0 25px 60px rgba(198, 40, 40, 0.18), 0 0 40px rgba(255, 193, 7, 0.05);
+  border-radius: 28px;
   width: 90%;
   max-width: 380px;
   padding: 28px;
@@ -2299,8 +2299,8 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
 }
 
 .staff-profile-item {
-  background-color: #111113;
-  border: 1px solid var(--dark-border);
+  background-color: var(--primary-yellow-light);
+  border: 1px solid var(--primary-yellow);
   border-radius: 16px;
   padding: 14px 8px;
   text-align: center;
@@ -2313,8 +2313,8 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
 }
 
 .staff-profile-item:hover {
-  border-color: var(--primary-yellow);
-  background-color: rgba(255, 193, 7, 0.05);
+  border-color: var(--primary-red);
+  background-color: var(--primary-red-light);
   transform: translateY(-4px);
 }
 
@@ -2322,35 +2322,35 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background-color: #1A1A1E;
+  background-color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8rem;
-  border: 2px solid var(--dark-border);
+  border: 2px solid var(--primary-yellow);
   transition: border-color var(--transition-fast);
 }
 
 .staff-profile-item:hover .avatar {
-  border-color: var(--primary-yellow);
+  border-color: var(--primary-red);
 }
 
 .staff-profile-item .name {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text-light-muted);
+  color: var(--text-dark);
   transition: color var(--transition-fast);
 }
 
 .staff-profile-item:hover .name {
-  color: #fff;
+  color: var(--primary-red);
 }
 
-/* Keypad styling */
-.keypad-btn {
-  background-color: #1A1A1E;
-  border: 1px solid var(--dark-border);
-  color: #fff;
+/* Keypad styling inside staff portal card */
+.staff-login-card .keypad-btn {
+  background-color: #F8FAFC;
+  border: 1px solid var(--primary-yellow-light);
+  color: var(--text-dark);
   font-size: 1.3rem;
   font-weight: 800;
   padding: 14px 0;
@@ -2360,31 +2360,32 @@ body.rtl .kds-card.ready-order { border-right: 4px solid var(--color-ready); }
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
-.keypad-btn:active {
+.staff-login-card .keypad-btn:active {
   background-color: var(--primary-yellow);
   color: var(--text-dark);
   border-color: var(--primary-yellow);
 }
 
-.keypad-btn.text {
+.staff-login-card .keypad-btn.text {
   font-weight: 700;
 }
 
-.pin-dot {
+.staff-login-card .pin-dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: #2D2D35;
-  border: 1px solid var(--dark-border);
+  background-color: #E2E8F0;
+  border: 1px solid var(--primary-yellow-light);
   transition: all var(--transition-fast);
 }
 
-.pin-dot.filled {
-  background-color: var(--primary-yellow);
-  border-color: var(--primary-yellow);
-  box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+.staff-login-card .pin-dot.filled {
+  background-color: var(--primary-red);
+  border-color: var(--primary-red);
+  box-shadow: 0 0 10px rgba(198, 40, 40, 0.4);
 }
 
 .shake-anim {

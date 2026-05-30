@@ -216,13 +216,13 @@
           <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
           <path d="M 28 64 C 28 54, 40 54, 50 58 C 60 54, 72 54, 72 64 C 72 74, 50 78, 50 78" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
         </svg>
-        <h2 style="color: var(--primary-yellow); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
+        <h2 style="color: var(--primary-red); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
         <p style="font-size: 0.8rem; color: var(--text-light-muted); margin-top: 2px;">Hi Proust Staff Portal</p>
       </div>
 
       <!-- STEP 1: SELECT ACCOUNT PROFILE -->
       <div id="login-step-profile">
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
         <div class="staff-profiles-grid" id="staff-profiles-container">
           <!-- Populated dynamically via JS -->
         </div>
@@ -231,10 +231,10 @@
       <!-- STEP 2: PIN ENTRY -->
       <div id="login-step-pin" style="display: none;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; justify-content: space-between;">
-          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--dark-border); color: #fff;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
-          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-yellow);" id="selected-staff-display">الكاشير عمر</span>
+          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark);"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
+          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-red);" id="selected-staff-display">الكاشير عمر</span>
         </div>
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
         
         <!-- PIN Dots Display -->
         <div class="pin-dots-row" style="display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;">

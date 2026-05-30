@@ -13,7 +13,7 @@
   <!-- ==========================================================================
        KITCHEN HEADER
        ========================================================================== -->
-  <header style="background: #111115; border-bottom: 2px solid var(--primary-yellow); display: flex; justify-content: space-between; align-items: center; padding: 10px 20px;">
+  <header style="background: linear-gradient(135deg, var(--primary-red) 0%, var(--primary-red-hover) 100%); border-bottom: 3px solid var(--primary-yellow); display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; box-shadow: 0 4px 20px rgba(198, 40, 40, 0.15);">
     <div class="brand-wrapper">
       <svg class="brand-logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
         <circle cx="50" cy="50" r="48" fill="#FFC107" stroke="#C62828" stroke-width="4"/>
@@ -24,7 +24,7 @@
       </svg>
       <div class="brand-text">
         <span class="brand-title" style="color: var(--primary-yellow);">شاشة المطبخ (KDS)</span>
-        <span class="brand-subtitle" style="color: var(--text-light-muted);">هاي بروست | Hi Proust</span>
+        <span class="brand-subtitle" style="color: rgba(255, 255, 255, 0.85);">هاي بروست | Hi Proust</span>
       </div>
     </div>
     <div id="active-staff-header-badge"></div>
@@ -37,9 +37,9 @@
     
     <div class="kds-header" style="border-bottom: none; padding-bottom: 0;">
       <div class="kds-title-wrap">
-        <i class="fa-solid fa-kitchen-set" style="font-size: 1.8rem; color: var(--primary-yellow);"></i>
+        <i class="fa-solid fa-kitchen-set" style="font-size: 1.8rem; color: var(--primary-red);"></i>
         <div>
-          <h2 style="font-weight: 800; font-size: 1.3rem; color: #fff;">لوحة تحضير الطلبات الحية</h2>
+          <h2 style="font-weight: 800; font-size: 1.3rem; color: var(--text-light);">لوحة تحضير الطلبات الحية</h2>
           <span style="font-size: 0.8rem; color: var(--text-light-muted);">مزامنة لحظية مع هواتف الزوار وأجهزة الكاشير</span>
         </div>
         <div class="kds-live-badge">
@@ -122,13 +122,13 @@
           <ellipse cx="44" cy="38" rx="3" ry="5" fill="#000"/><ellipse cx="56" cy="38" rx="3" ry="5" fill="#000"/>
           <path d="M 28 64 C 28 54, 40 54, 50 58 C 60 54, 72 54, 72 64 C 72 74, 50 78, 50 78" fill="#FFFFFF" stroke="#333" stroke-width="2"/>
         </svg>
-        <h2 style="color: var(--primary-yellow); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
+        <h2 style="color: var(--primary-red); font-weight: 800; font-size: 1.3rem; margin-top: 10px;">بوابة موظفي هاي بروست</h2>
         <p style="font-size: 0.8rem; color: var(--text-light-muted); margin-top: 2px;">Hi Proust Staff Portal</p>
       </div>
 
       <!-- STEP 1: SELECT ACCOUNT PROFILE -->
       <div id="login-step-profile">
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">الرجاء اختيار حسابك للبدء:</h3>
         <div class="staff-profiles-grid" id="staff-profiles-container">
           <!-- Populated dynamically via JS -->
         </div>
@@ -137,10 +137,10 @@
       <!-- STEP 2: PIN ENTRY -->
       <div id="login-step-pin" style="display: none;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; justify-content: space-between;">
-          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--dark-border); color: #fff;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
-          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-yellow);" id="selected-staff-display">الشيف أحمد</span>
+          <button class="sim-btn" id="btn-back-to-profiles" style="padding: 4px 10px; font-size: 0.75rem; background: var(--primary-yellow-light); border: 1px solid var(--primary-yellow); color: var(--text-dark);"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
+          <span style="font-size: 0.85rem; font-weight: bold; color: var(--primary-red);" id="selected-staff-display">الشيف أحمد</span>
         </div>
-        <h3 style="font-size: 0.95rem; text-align: center; color: #fff; margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
+        <h3 style="font-size: 0.95rem; text-align: center; color: var(--text-light); margin-bottom: 16px;">أدخل رمز الدخول السري (PIN):</h3>
         
         <!-- PIN Dots Display -->
         <div class="pin-dots-row" style="display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;">
