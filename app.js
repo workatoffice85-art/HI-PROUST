@@ -309,6 +309,45 @@ const AppState = {
   tables: [],
   tablesLoaded: false,
   
+  // 15 Modules Dashboard Premium states
+  inventory: [
+    { id: 'inv-01', nameAr: 'صدور دجاج طازجة (كجم)', nameEn: 'Fresh Chicken Breasts (kg)', stock: 85.0, minLimit: 20.0, supplier: 'تنمية للدواجن' },
+    { id: 'inv-02', nameAr: 'خبز كايزر طازج (قطعة)', nameEn: 'Fresh Kaiser Buns (pcs)', stock: 240, minLimit: 50, supplier: 'مخبز الأرز الأوتوماتيكي' },
+    { id: 'inv-03', nameAr: 'ثوم طازج مفروم (كجم)', nameEn: 'Minced Fresh Garlic (kg)', stock: 15.0, minLimit: 5.0, supplier: 'الشركة الزراعية السعودية' },
+    { id: 'inv-04', nameAr: 'ملفوف كول سلو طازج (كجم)', nameEn: 'Coleslaw Cabbage (kg)', stock: 35.0, minLimit: 10.0, supplier: 'شركة خضروات القصيم' },
+    { id: 'inv-05', nameAr: 'علب بيبسي معدنية (قطعة)', nameEn: 'Pepsi Cans (pcs)', stock: 450, minLimit: 100, supplier: 'الشركة الجميح لتعبئة بيبسي' },
+    { id: 'inv-06', nameAr: 'زيت قلي نباتي (لتر)', nameEn: 'Vegetable Frying Oil (L)', stock: 120.0, minLimit: 30.0, supplier: 'شركة عافية للزيوت' }
+  ],
+  employees: [
+    { id: 'emp-01', name: 'المدير فهد الرواد', phone: '01000000001', role: 'admin', pin: '1111' },
+    { id: 'emp-02', name: 'الكاشير خالد الشمراني', phone: '01000000002', role: 'cashier', pin: '2222' },
+    { id: 'emp-03', name: 'الشيف أحمد الحربي', phone: '01000000003', role: 'kitchen', pin: '3333' }
+  ],
+  notifications: [
+    { id: 'not-01', type: 'info', titleAr: 'اتصال النظام', titleEn: 'System Connection', descAr: 'تم تفعيل الاتصال المباشر بقاعدة البيانات السحابية.', descEn: 'Real-time database sync successfully initialized.', time: '09:00 م' }
+  ],
+  auditLogs: [
+    { id: 'aud-01', user: 'نظام التشغيل', actionAr: 'تم تشغيل وتفعيل خادم قاعدة البيانات', actionEn: 'Database server successfully initialized', time: '09:00 م', ip: '192.168.1.1' }
+  ],
+  cashierShift: {
+    open: false,
+    openingFloat: 500.00,
+    currentCash: 500.00,
+    openingTime: null,
+    closingTime: null,
+    tillLogs: []
+  },
+  restaurantSettings: {
+    nameAr: 'هاي بروست',
+    nameEn: 'Hi Proust',
+    vatRate: 0.15,
+    currencyAr: 'ر.س',
+    currencyEn: 'SAR',
+    workingHoursAr: '١٢:٠٠ ظهراً - ٠٢:٠٠ صباحاً',
+    workingHoursEn: '12:00 PM - 02:00 AM',
+    logoSvg: `<circle cx="50" cy="50" r="48" fill="#FFC107" stroke="#C62828" stroke-width="4"/>`
+  },
+  
   // Cached DOM query elements
   elements: {}
 };
@@ -3434,6 +3473,17 @@ function initCustomerView() {
         );
         return;
       }
+
+      if (AppState.bannedCustomers && AppState.bannedCustomers.includes(currentPhoneDigits)) {
+        AudioSynthesizer.playBeep();
+        showToastNotification(
+          AppState.selectedLang === 'ar'
+            ? "عذراً، رقم جوالك محظور حالياً من قبل الإدارة التشغيلية."
+            : "Sorry, this phone number is currently banned by the management.",
+          'new'
+        );
+        return;
+      }
       
       // Loading State Visual Cue
       const originalHtml = btnPhoneSubmit.innerHTML;
@@ -4009,13 +4059,48 @@ function initAdminView() {
       document.querySelectorAll('.admin-menu-item').forEach(b => b.classList.remove('active'));
       item.classList.add('active');
 
-      const targetPanelId = item.getAttribute('data-target');
+      let targetPanelId = item.getAttribute('data-target');
+      
+      // Map 'panel-products' click in sidebar to open the menu manager panel 'panel-menu-manage'
+      if (targetPanelId === 'panel-products') {
+        targetPanelId = 'panel-menu-manage';
+      }
+
       document.querySelectorAll('.admin-tab-panel').forEach(panel => {
         panel.classList.remove('active');
         if (panel.id === targetPanelId) {
           panel.classList.add('active');
         }
       });
+
+      // Execute corresponding render helpers
+      if (targetPanelId === 'panel-overview' || targetPanelId === 'panel-orders') {
+        renderAdminDashboard();
+      } else if (targetPanelId === 'panel-kitchen') {
+        renderAdminKitchenKDS();
+      } else if (targetPanelId === 'panel-cashier') {
+        renderAdminCashierTill();
+      } else if (targetPanelId === 'panel-tables') {
+        renderAdminTablesGrid();
+      } else if (targetPanelId === 'panel-menu-manage') {
+        renderAdminMenuManage();
+      } else if (targetPanelId === 'panel-categories') {
+        renderAdminCategoriesPanel();
+      } else if (targetPanelId === 'panel-customers') {
+        renderAdminCustomersRoster();
+      } else if (targetPanelId === 'panel-inventory') {
+        renderAdminInventoryStock();
+      } else if (targetPanelId === 'panel-employees') {
+        renderAdminEmployeesRoster();
+      } else if (targetPanelId === 'panel-reports') {
+        renderAdminReportsPanel();
+      } else if (targetPanelId === 'panel-analytics') {
+        renderAdminAnalyticsCharts();
+      } else if (targetPanelId === 'panel-notifications') {
+        renderAdminNotificationsCenter();
+      } else if (targetPanelId === 'panel-audit-logs') {
+        renderAdminAuditLogs();
+      }
     });
   });
 
@@ -4452,6 +4537,485 @@ function initAdminView() {
       renderAdminDashboard();
     });
   }
+
+  // ==========================================
+  // ADD CAT PANEL WIREUP
+  // ==========================================
+  const btnAddCatPanel = document.getElementById('btn-add-cat-modal-panel');
+  if (btnAddCatPanel) {
+    btnAddCatPanel.addEventListener('click', () => {
+      const btnAddCat = document.getElementById('btn-add-cat-modal');
+      if (btnAddCat) btnAddCat.click();
+    });
+  }
+
+  // ==========================================
+  // INVENTORY MANUAL AUDIT WIREUP
+  // ==========================================
+  const btnInvManualAudit = document.getElementById('btn-inventory-manual-audit');
+  if (btnInvManualAudit) {
+    btnInvManualAudit.addEventListener('click', () => {
+      window.triggerInventoryAdjust('');
+    });
+  }
+
+  // ==========================================
+  // CASHIER SHIFT TILL WIREUP
+  // ==========================================
+  const btnSubmitOpenShift = document.getElementById('btn-submit-open-shift');
+  if (btnSubmitOpenShift) {
+    btnSubmitOpenShift.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const inputFloat = document.getElementById('cashier-shift-opening-float');
+      const floatVal = parseFloat(inputFloat ? inputFloat.value : '500') || 500;
+      AppState.cashierShift.open = true;
+      AppState.cashierShift.openingFloat = floatVal;
+      AppState.cashierShift.currentCash = floatVal;
+      AppState.cashierShift.openingTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+      AppState.cashierShift.tillLogs = [{ desc: 'افتتاح الخزينة والوردية', amount: 0 }];
+      saveToLocalStorage();
+      
+      const modal = document.getElementById('modal-open-shift-cashier');
+      if (modal) modal.style.display = 'none';
+      
+      logAuditTrail(
+        'أمين الخزينة خالد',
+        `تم فتح وردية كاشير جديدة بعهدة افتتاحية ${floatVal.toFixed(2)} ر.س`,
+        `Opened new cashier shift with float of ${floatVal.toFixed(2)} SAR`
+      );
+      
+      renderAdminCashierTill();
+    });
+  }
+
+  const btnCloseShiftModal = document.getElementById('btn-close-shift-modal');
+  if (btnCloseShiftModal) {
+    btnCloseShiftModal.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const modal = document.getElementById('modal-open-shift-cashier');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  // ==========================================
+  // EMPLOYEE CRUD WIREUPS
+  // ==========================================
+  const btnAddEmp = document.getElementById('btn-admin-add-employee');
+  if (btnAddEmp) {
+    btnAddEmp.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      document.getElementById('employee-editor-title').innerText = AppState.selectedLang === 'ar' ? 'تعيين موظف جديد بالمطعم' : 'Add New Staff Member';
+      document.getElementById('edit-employee-id').value = '';
+      document.getElementById('edit-emp-name').value = '';
+      document.getElementById('edit-emp-phone').value = '';
+      document.getElementById('edit-emp-role').value = 'cashier';
+      document.getElementById('edit-emp-pin').value = '';
+      
+      const modal = document.getElementById('modal-employee-editor');
+      if (modal) modal.style.display = 'flex';
+    });
+  }
+
+  const btnCloseEmp = document.getElementById('btn-close-employee-modal');
+  if (btnCloseEmp) {
+    btnCloseEmp.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const modal = document.getElementById('modal-employee-editor');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  const formEmp = document.getElementById('form-employee-editor');
+  if (formEmp) {
+    formEmp.addEventListener('submit', (e) => {
+      e.preventDefault();
+      AudioSynthesizer.playBeep();
+      
+      const empId = document.getElementById('edit-employee-id').value.trim();
+      const name = document.getElementById('edit-emp-name').value.trim();
+      const phone = document.getElementById('edit-emp-phone').value.trim();
+      const role = document.getElementById('edit-emp-role').value;
+      const pin = document.getElementById('edit-emp-pin').value.trim();
+
+      if (pin.length !== 4 || isNaN(pin)) {
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? "يجب أن يتكون رمز الدخول PIN من ٤ أرقام!" : "PIN must be exactly 4 digits!",
+          'new'
+        );
+        return;
+      }
+
+      if (empId) {
+        const emp = AppState.employees.find(e => e.id === empId);
+        if (emp) {
+          emp.name = name;
+          emp.phone = phone;
+          emp.role = role;
+          emp.pin = pin;
+          logAuditTrail('المدير فهد', `تعديل بيانات الموظف: ${name}`, `Updated staff member: ${name}`);
+        }
+      } else {
+        const nextId = `emp-${Date.now()}`;
+        AppState.employees.push({ id: nextId, name, phone, role, pin });
+        logAuditTrail('المدير فهد', `تعيين موظف جديد: ${name}`, `Hired new staff member: ${name}`);
+      }
+
+      saveToLocalStorage();
+      const modal = document.getElementById('modal-employee-editor');
+      if (modal) modal.style.display = 'none';
+      
+      renderAdminEmployeesRoster();
+    });
+  }
+
+  // ==========================================
+  // INVENTORY stock forms
+  // ==========================================
+  const btnCloseInv = document.getElementById('btn-close-inventory-modal');
+  if (btnCloseInv) {
+    btnCloseInv.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const modal = document.getElementById('modal-inventory-audit');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  const formInv = document.getElementById('form-inventory-audit');
+  if (formInv) {
+    formInv.addEventListener('submit', (e) => {
+      e.preventDefault();
+      AudioSynthesizer.playBeep();
+      
+      const itemId = document.getElementById('edit-inventory-item-id').value;
+      const actionType = document.getElementById('edit-inventory-action-type').value;
+      const qty = parseInt(document.getElementById('edit-inventory-qty').value) || 0;
+
+      const item = AppState.inventory.find(i => i.id === itemId);
+      if (!item) return;
+
+      const oldStock = item.stock;
+      if (actionType === 'set') {
+        item.stock = qty;
+      } else if (actionType === 'add') {
+        item.stock += qty;
+      } else if (actionType === 'deduct') {
+        item.stock = Math.max(0, item.stock - qty);
+      }
+
+      saveToLocalStorage();
+      
+      logAuditTrail(
+        'المدير فهد', 
+        `جرد المخزون للمادة ${item.nameAr}: تعديل الكمية من ${oldStock} إلى ${item.stock}`, 
+        `Audited inventory item ${item.nameEn}: changed stock from ${oldStock} to ${item.stock}`
+      );
+
+      const modal = document.getElementById('modal-inventory-audit');
+      if (modal) modal.style.display = 'none';
+      
+      renderAdminInventoryStock();
+    });
+  }
+
+  // ==========================================
+  // MANUAL ORDER CREATION FORM
+  // ==========================================
+  const btnOpenManualOrder = document.getElementById('btn-admin-add-order-manual');
+  if (btnOpenManualOrder) {
+    btnOpenManualOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      resetManualOrderForm();
+      
+      const tableSelect = document.getElementById('manual-order-table');
+      if (tableSelect) {
+        tableSelect.innerHTML = '';
+        const total = AppState.totalTables || 12;
+        for (let i = 1; i <= total; i++) {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.innerText = AppState.selectedLang === 'ar' ? `طاولة ${i}` : `Table ${i}`;
+          tableSelect.appendChild(opt);
+        }
+      }
+      
+      const modal = document.getElementById('modal-manual-order-creation');
+      if (modal) modal.style.display = 'flex';
+    });
+  }
+
+  const btnCloseManualOrder = document.getElementById('btn-close-manual-order');
+  if (btnCloseManualOrder) {
+    btnCloseManualOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const modal = document.getElementById('modal-manual-order-creation');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  const btnSubmitManualOrder = document.getElementById('btn-submit-manual-order');
+  if (btnSubmitManualOrder) {
+    btnSubmitManualOrder.addEventListener('click', async () => {
+      AudioSynthesizer.playBeep();
+      
+      const phone = document.getElementById('manual-order-phone').value.trim();
+      const name = document.getElementById('manual-order-name').value.trim();
+      const notes = document.getElementById('manual-order-notes').value.trim();
+      const type = document.getElementById('manual-order-delivery-type').value;
+      const table = parseInt(document.getElementById('manual-order-table').value) || 0;
+
+      if (!phone || phone.length < 11 || isNaN(phone)) {
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? 'الرجاء إدخال رقم جوال صحيح مكون من ١١ رقماً!' : 'Please enter a valid 11-digit phone number!',
+          'new'
+        );
+        return;
+      }
+      if (!name) {
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? 'الرجاء إدخال اسم العميل!' : 'Please enter customer name!',
+          'new'
+        );
+        return;
+      }
+      if (Object.keys(window.manualOrderCart).length === 0) {
+        showToastNotification(
+          AppState.selectedLang === 'ar' ? 'الرجاء اختيار وجبة واحدة على الأقل!' : 'Please select at least one menu item!',
+          'new'
+        );
+        return;
+      }
+
+      const chosenOrderId = await getNextUniqueOrderId();
+      
+      let subtotal = 0;
+      const itemsList = [];
+      Object.keys(window.manualOrderCart).forEach(id => {
+        const qty = window.manualOrderCart[id];
+        const item = MENU.find(m => m.id === id);
+        if (item) {
+          subtotal += (item.price * qty);
+          itemsList.push({
+            id: item.id,
+            nameAr: item.nameAr,
+            nameEn: item.nameEn,
+            qty: qty,
+            price: item.price
+          });
+        }
+      });
+      const tax = subtotal * 0.15;
+      const total = subtotal + tax;
+
+      const newOrder = {
+        id: chosenOrderId,
+        table: type === 'dine-in' ? table : 0,
+        name: name,
+        phone: phone,
+        items: itemsList,
+        subtotal: subtotal,
+        tax: tax,
+        total: total,
+        notes: notes,
+        type: type,
+        status: 'pending_payment',
+        paymentStatus: 'unpaid',
+        paymentMethod: null,
+        timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+        elapsedSeconds: 0
+      };
+
+      AppState.orders.push(newOrder);
+      saveToLocalStorage();
+
+      logAuditTrail(
+        'المدير فهد', 
+        `إنشاء طلب يدوي جديد بقيمة ${total.toFixed(2)} ر.س للعميل ${name}`, 
+        `Placed manual order of ${total.toFixed(2)} SAR for guest ${name}`
+      );
+
+      if (supabaseClient) {
+        try {
+          let customerUuid = null;
+          const { data: custData } = await supabaseClient.from('customers').select('id').eq('phone', phone).maybeSingle();
+          if (custData) {
+            customerUuid = custData.id;
+          } else {
+            const { data: newCust } = await supabaseClient.from('customers').insert({ name, phone }).select('id').single();
+            if (newCust) customerUuid = newCust.id;
+          }
+
+          let tableUuid = null;
+          if (type === 'dine-in') {
+            const { data: tableData } = await supabaseClient.from('tables').select('id').eq('table_number', table).maybeSingle();
+            if (tableData) tableUuid = tableData.id;
+          }
+
+          await supabaseClient.from('orders').insert({
+            id: chosenOrderId,
+            customer_id: customerUuid,
+            table_id: tableUuid,
+            status: 'pending_payment',
+            subtotal: subtotal,
+            tax: tax,
+            total: total,
+            notes: notes,
+            delivery_type: type
+          });
+
+          const itemsPayload = itemsList.map(itm => ({
+            order_id: chosenOrderId,
+            product_id: itm.id,
+            quantity: itm.qty,
+            price: itm.price
+          }));
+          await supabaseClient.from('order_items').insert(itemsPayload);
+        } catch(err) {
+          console.warn("Supabase manual order insertion error:", err);
+        }
+      }
+
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم تسجيل وإرسال الطلب اليدوي بنجاح!' : 'Manual order created and sent successfully!',
+        'ready'
+      );
+
+      const modal = document.getElementById('modal-manual-order-creation');
+      if (modal) modal.style.display = 'none';
+
+      renderAdminDashboard();
+      if (typeof renderAdminKitchenKDS === 'function') renderAdminKitchenKDS();
+      if (typeof renderAdminCashierTill === 'function') renderAdminCashierTill();
+    });
+  }
+
+  // ==========================================
+  // ORDER EDITOR BUTTON WIREUPS
+  // ==========================================
+  const btnCloseEditor = document.getElementById('btn-close-order-editor-admin');
+  if (btnCloseEditor) {
+    btnCloseEditor.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const modal = document.getElementById('modal-order-editor-admin');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  const btnEditorAddItem = document.getElementById('btn-admin-editor-add-item');
+  if (btnEditorAddItem) {
+    btnEditorAddItem.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      const select = document.getElementById('admin-editor-add-item-select');
+      if (!select || !window.editingOrder) return;
+      
+      const productId = select.value;
+      const product = MENU.find(m => m.id === productId);
+      if (!product) return;
+      
+      const existing = window.editingOrder.items.find(itm => itm.id === productId);
+      if (existing) {
+        existing.qty++;
+      } else {
+        window.editingOrder.items.push({
+          id: product.id,
+          nameAr: product.nameAr,
+          nameEn: product.nameEn,
+          qty: 1,
+          price: product.price
+        });
+      }
+      
+      window.renderAdminEditorItems();
+    });
+  }
+
+  const discountField = document.getElementById('admin-editor-discount');
+  if (discountField) {
+    discountField.addEventListener('input', () => {
+      if (window.editingOrder) {
+        window.renderAdminEditorItems();
+      }
+    });
+  }
+
+  const btnCancelOrder = document.getElementById('btn-admin-editor-cancel-order');
+  if (btnCancelOrder) {
+    btnCancelOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (confirm(AppState.selectedLang === 'ar' ? 'هل أنت متأكد من إلغاء هذا الطلب بالكامل؟' : 'Are you sure you want to cancel this order?')) {
+        window.editingOrder.status = 'cancelled';
+        document.getElementById('admin-editor-status').value = 'cancelled';
+        document.getElementById('btn-admin-editor-reopen-order').style.display = 'block';
+        btnCancelOrder.style.display = 'none';
+      }
+    });
+  }
+
+  const btnReopenOrder = document.getElementById('btn-admin-editor-reopen-order');
+  if (btnReopenOrder) {
+    btnReopenOrder.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      window.editingOrder.status = 'new';
+      document.getElementById('admin-editor-status').value = 'pending_payment';
+      btnCancelOrder.style.display = 'block';
+      btnReopenOrder.style.display = 'none';
+    });
+  }
+
+  const btnSaveEdits = document.getElementById('btn-admin-editor-save');
+  if (btnSaveEdits) {
+    btnSaveEdits.addEventListener('click', async () => {
+      AudioSynthesizer.playBeep();
+      if (!window.editingOrder) return;
+      
+      window.editingOrder.status = document.getElementById('admin-editor-status').value;
+      if (window.editingOrder.status === 'paid' || window.editingOrder.status === 'preparing' || window.editingOrder.status === 'ready' || window.editingOrder.status === 'completed') {
+        window.editingOrder.paymentStatus = 'paid';
+      } else {
+        window.editingOrder.paymentStatus = 'unpaid';
+      }
+      
+      const originalIdx = AppState.orders.findIndex(o => o.id === window.editingOrder.id);
+      if (originalIdx > -1) {
+        AppState.orders[originalIdx] = window.editingOrder;
+        saveToLocalStorage();
+        
+        logAuditTrail(
+          'المدير فهد', 
+          `تم تعديل وتحديث بيانات الطلب ${window.editingOrder.id} يدوياً`, 
+          `Edited and updated order ${window.editingOrder.id} manually`
+        );
+        
+        if (supabaseClient) {
+          try {
+            await supabaseClient.from('order_items').delete().eq('order_id', window.editingOrder.id);
+            const itemsPayload = window.editingOrder.items.map(itm => ({
+              order_id: window.editingOrder.id,
+              product_id: itm.id,
+              quantity: itm.qty,
+              price: itm.price
+            }));
+            await supabaseClient.from('order_items').insert(itemsPayload);
+            
+            await supabaseClient.from('orders').update({
+              status: window.editingOrder.status,
+              subtotal: window.editingOrder.subtotal,
+              tax: window.editingOrder.tax,
+              total: window.editingOrder.total
+            }).eq('id', window.editingOrder.id);
+          } catch(err) {
+            console.warn("Supabase order editor sync error:", err);
+          }
+        }
+        
+        const modal = document.getElementById('modal-order-editor-admin');
+        if (modal) modal.style.display = 'none';
+        
+        renderAdminDashboard();
+        if (typeof renderAdminKitchenKDS === 'function') renderAdminKitchenKDS();
+        if (typeof renderAdminCashierTill === 'function') renderAdminCashierTill();
+      }
+    });
+  }
 }
 
 function renderAdminQRCodes() {
@@ -4537,6 +5101,1180 @@ function renderAdminQRCodes() {
     `;
     qrGrid.appendChild(card);
   }
+}
+
+// ==========================================================================
+// 15 MODULES DASHBOARD PREMIUM OPERATIONAL ENGINE
+// ==========================================================================
+
+function logAuditTrail(user, actionAr, actionEn) {
+  const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const ip = `192.168.1.${Math.floor(Math.random() * 250 + 2)}`;
+  const log = { id: `aud-${Date.now()}`, user, actionAr, actionEn, time, ip };
+  AppState.auditLogs.unshift(log);
+  if (AppState.auditLogs.length > 50) AppState.auditLogs.pop();
+  saveToLocalStorage();
+  
+  triggerSystemNotification('info', actionEn, actionAr);
+  
+  if (AppState.activeRole === 'admin-view') {
+    renderAdminAuditLogs();
+  }
+}
+
+function triggerSystemNotification(type, titleEn, titleAr) {
+  const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  const n = { id: `not-${Date.now()}`, type, titleAr, titleEn, descAr: titleAr, descEn: titleEn, time };
+  AppState.notifications.unshift(n);
+  if (AppState.notifications.length > 30) AppState.notifications.pop();
+  saveToLocalStorage();
+  
+  if (type === 'alert') AudioSynthesizer.playBeep();
+  
+  if (AppState.activeRole === 'admin-view') {
+    renderAdminNotificationsCenter();
+    renderAdminDashboard(); // refresh dashboard alerts
+  }
+}
+
+// --------------------------------------------------------------------------
+// MANUAL ORDER FLOW ACTIONS
+// --------------------------------------------------------------------------
+window.manualOrderCart = {}; // { id: qty }
+window.adjustManualOrderQty = function(id, change) {
+  AudioSynthesizer.playBeep();
+  const current = window.manualOrderCart[id] || 0;
+  const next = Math.max(0, current + change);
+  if (next === 0) {
+    delete window.manualOrderCart[id];
+  } else {
+    window.manualOrderCart[id] = next;
+  }
+  
+  const qtyEl = document.getElementById(`manual-qty-${id}`);
+  if (qtyEl) qtyEl.innerText = next;
+  
+  updateManualOrderTotal();
+};
+
+function populateManualOrderProducts() {
+  const container = document.getElementById('manual-order-products-container');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  MENU.forEach(item => {
+    const qty = window.manualOrderCart[item.id] || 0;
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'center';
+    row.style.padding = '8px 12px';
+    row.style.borderBottom = '1px solid var(--dark-border)';
+    row.style.fontSize = '0.8rem';
+    row.style.color = '#fff';
+    
+    row.innerHTML = `
+      <span>${AppState.selectedLang === 'ar' ? item.nameAr : item.nameEn} - <strong style="color:var(--primary-yellow);">${item.price.toFixed(2)} SAR</strong></span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="qty-btn" type="button" onclick="adjustManualOrderQty('${item.id}', -1)" style="width:24px; height:24px; border-radius:50%; border:1px solid var(--dark-border); background:rgba(255,255,255,0.05); color:#fff; cursor:pointer;">-</button>
+        <span id="manual-qty-${item.id}" style="font-weight:bold; width:20px; text-align:center;">${qty}</span>
+        <button class="qty-btn" type="button" onclick="adjustManualOrderQty('${item.id}', 1)" style="width:24px; height:24px; border-radius:50%; border:1px solid var(--dark-border); background:rgba(255,255,255,0.05); color:#fff; cursor:pointer;">+</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function updateManualOrderTotal() {
+  let subtotal = 0;
+  Object.keys(window.manualOrderCart).forEach(id => {
+    const qty = window.manualOrderCart[id];
+    const item = MENU.find(m => m.id === id);
+    if (item) subtotal += (item.price * qty);
+  });
+  const total = subtotal * 1.15;
+  
+  const display = document.getElementById('manual-order-total-display');
+  if (display) display.innerText = total.toFixed(2) + " SAR";
+}
+
+function resetManualOrderForm() {
+  window.manualOrderCart = {};
+  if (document.getElementById('manual-order-phone')) document.getElementById('manual-order-phone').value = '';
+  if (document.getElementById('manual-order-name')) document.getElementById('manual-order-name').value = '';
+  if (document.getElementById('manual-order-notes')) document.getElementById('manual-order-notes').value = '';
+  if (document.getElementById('manual-order-delivery-type')) document.getElementById('manual-order-delivery-type').value = 'dine-in';
+  if (document.getElementById('manual-order-table')) document.getElementById('manual-order-table').value = '1';
+  populateManualOrderProducts();
+  updateManualOrderTotal();
+}
+
+// ==========================================================================
+// ORDER EDITOR ENGINE GLOBAL HELPERS
+// ==========================================================================
+window.editingOrder = null;
+
+window.triggerOrderEditor = function(orderId) {
+  AudioSynthesizer.playBeep();
+  const order = AppState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  window.editingOrder = JSON.parse(JSON.stringify(order));
+  
+  document.getElementById('admin-editor-order-id').innerText = order.id;
+  document.getElementById('admin-editor-order-customer').innerText = order.name || '-';
+  document.getElementById('admin-editor-order-phone').innerText = order.phone || '-';
+  document.getElementById('admin-editor-order-type').innerText = order.type === 'dine-in' 
+    ? (AppState.selectedLang === 'ar' ? `محلي طاولة ${order.table}` : `Dine-in T${order.table}`)
+    : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
+  
+  document.getElementById('admin-editor-order-date').innerText = order.timestamp || '-';
+  
+  document.getElementById('admin-editor-discount').value = order.discountPercent || 0;
+  document.getElementById('admin-editor-status').value = order.status;
+  
+  if (order.status === 'cancelled') {
+    document.getElementById('btn-admin-editor-reopen-order').style.display = 'block';
+    document.getElementById('btn-admin-editor-cancel-order').style.display = 'none';
+  } else {
+    document.getElementById('btn-admin-editor-reopen-order').style.display = 'none';
+    document.getElementById('btn-admin-editor-cancel-order').style.display = 'block';
+  }
+  
+  const select = document.getElementById('admin-editor-add-item-select');
+  if (select) {
+    select.innerHTML = '';
+    MENU.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.id;
+      opt.innerText = AppState.selectedLang === 'ar' ? item.nameAr : item.nameEn;
+      select.appendChild(opt);
+    });
+  }
+  
+  window.renderAdminEditorItems();
+  
+  const modal = document.getElementById('modal-order-editor-admin');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.renderAdminEditorItems = function() {
+  const list = document.getElementById('admin-editor-items-list');
+  if (!list) return;
+  list.innerHTML = '';
+  
+  let subtotal = 0;
+  window.editingOrder.items.forEach((item, index) => {
+    const cost = item.price * item.qty;
+    subtotal += cost;
+    
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'center';
+    row.style.padding = '8px 10px';
+    row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+    
+    row.innerHTML = `
+      <span style="font-size:0.8rem; font-weight:700; color:#fff;">${AppState.selectedLang === 'ar' ? item.nameAr : item.nameEn}</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:0.75rem; color:var(--text-light-muted);">${item.price.toFixed(2)} SAR</span>
+        <button class="qty-btn" type="button" onclick="window.adjustEditorItemQty(${index}, -1)" style="width:24px; height:24px; border-radius:50%; border:1px solid var(--dark-border); background:rgba(255,255,255,0.05); color:#fff; cursor:pointer;">-</button>
+        <span style="font-weight:bold; width:15px; text-align:center; font-size:0.8rem;">${item.qty}</span>
+        <button class="qty-btn" type="button" onclick="window.adjustEditorItemQty(${index}, 1)" style="width:24px; height:24px; border-radius:50%; border:1px solid var(--dark-border); background:rgba(255,255,255,0.05); color:#fff; cursor:pointer;">+</button>
+        <span style="font-weight:800; color:var(--primary-yellow); min-width:60px; text-align:left;">${cost.toFixed(2)} SAR</span>
+        <button type="button" onclick="window.removeEditorItem(${index})" style="background:none; border:none; color:var(--primary-red); cursor:pointer;"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+  
+  const discountInput = document.getElementById('admin-editor-discount');
+  const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+  const discountAmt = subtotal * (discountPercent / 100);
+  const discountedSubtotal = subtotal - discountAmt;
+  const tax = discountedSubtotal * 0.15;
+  const total = discountedSubtotal + tax;
+  
+  window.editingOrder.subtotal = discountedSubtotal;
+  window.editingOrder.tax = tax;
+  window.editingOrder.total = total;
+  window.editingOrder.discountPercent = discountPercent;
+  
+  document.getElementById('admin-editor-total-display').innerText = total.toFixed(2) + " SAR";
+};
+
+window.adjustEditorItemQty = function(index, change) {
+  AudioSynthesizer.playBeep();
+  const item = window.editingOrder.items[index];
+  if (!item) return;
+  
+  item.qty = Math.max(0, item.qty + change);
+  if (item.qty === 0) {
+    window.editingOrder.items.splice(index, 1);
+  }
+  window.renderAdminEditorItems();
+};
+
+window.removeEditorItem = function(index) {
+  AudioSynthesizer.playBeep();
+  window.editingOrder.items.splice(index, 1);
+  window.renderAdminEditorItems();
+};
+
+// --------------------------------------------------------------------------
+// MODULE 3: KITCHEN DISPLAY SYSTEM LOGIC
+// --------------------------------------------------------------------------
+function renderAdminKitchenKDS() {
+  const L = TRANSLATIONS[AppState.selectedLang];
+  const newCol = document.getElementById('kds-column-new-list');
+  const paidCol = document.getElementById('kds-column-paid-list');
+  const prepCol = document.getElementById('kds-column-preparing-list');
+  const readyCol = document.getElementById('kds-column-ready-list');
+  
+  if (!newCol || !paidCol || !prepCol || !readyCol) return;
+  
+  // Clear lists
+  newCol.innerHTML = '';
+  paidCol.innerHTML = '';
+  prepCol.innerHTML = '';
+  readyCol.innerHTML = '';
+  
+  let newCount = 0, paidCount = 0, prepCount = 0, readyCount = 0;
+  
+  // Sort active orders (undelivered)
+  const activeOrders = AppState.orders.filter(o => o.status !== 'delivered' && o.status !== 'completed');
+  
+  activeOrders.forEach(o => {
+    const card = document.createElement('div');
+    card.className = 'kds-card-board';
+    
+    const itemsList = o.items.map(itm => `
+      <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:4px;">
+        <span>${itm.qty}x ${AppState.selectedLang === 'ar' ? itm.nameAr : itm.nameEn}</span>
+      </div>
+    `).join('');
+    
+    const tableText = o.type === 'dine-in' 
+      ? (AppState.selectedLang === 'ar' ? `طاولة ${o.table}` : `Table ${o.table}`)
+      : (AppState.selectedLang === 'ar' ? 'سفري كرتون' : 'Takeaway');
+      
+    // Timer details
+    const seconds = o.elapsedSeconds || 0;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const timeDisplay = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    const isLate = mins >= 15;
+    const timerColor = isLate ? 'var(--primary-red)' : 'var(--primary-yellow)';
+    
+    // Assign chef options
+    const currentChef = o.assignedChef || '';
+    const chefsOptions = `
+      <select onchange="window.assignKdsChef('${o.id}', this.value)" style="background:rgba(255,255,255,0.05); border:1px solid var(--dark-border); color:#fff; font-size:0.65rem; padding:2px; border-radius:4px; width:100%; margin-top:6px;">
+        <option value="">${AppState.selectedLang === 'ar' ? 'تعيين طاهٍ...' : 'Assign Chef...'}</option>
+        <option value="الرواد فهد" ${currentChef === 'الرواد فهد' ? 'selected' : ''}>فهد</option>
+        <option value="أحمد الحربي" ${currentChef === 'أحمد الحربي' ? 'selected' : ''}>أحمد</option>
+        <option value="خالد الشمراني" ${currentChef === 'خالد الشمراني' ? 'selected' : ''}>خالد</option>
+      </select>
+    `;
+    
+    let btnAction = '';
+    if (o.status === 'new' || o.status === 'pending_payment') {
+      btnAction = `<button class="sim-btn" onclick="window.transitionKdsStatus('${o.id}', 'paid')" style="width:100%; margin-top:8px; padding:6px; font-size:0.7rem; background:#3B82F6; border:none; color:#fff;">تأكيد الدفع للتحضير</button>`;
+    } else if (o.status === 'paid') {
+      btnAction = `<button class="sim-btn" onclick="window.transitionKdsStatus('${o.id}', 'preparing')" style="width:100%; margin-top:8px; padding:6px; font-size:0.7rem; background:var(--primary-yellow); color:#121214; border:none;">بدء الطهي (Start Cooking)</button>`;
+    } else if (o.status === 'preparing') {
+      btnAction = `<button class="sim-btn" onclick="window.transitionKdsStatus('${o.id}', 'ready')" style="width:100%; margin-top:8px; padding:6px; font-size:0.7rem; background:var(--color-ready); color:#fff; border:none;">جاهز للتسليم (Ready)</button>`;
+    } else if (o.status === 'ready') {
+      btnAction = `<button class="sim-btn" onclick="window.transitionKdsStatus('${o.id}', 'delivered')" style="width:100%; margin-top:8px; padding:6px; font-size:0.7rem; background:var(--primary-red); color:#fff; border:none;">تسليم للعميل (Deliver)</button>`;
+    }
+    
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--dark-border); padding-bottom:6px; margin-bottom:8px;">
+        <span style="font-weight:900; color:var(--primary-yellow);">${o.id}</span>
+        <span style="font-weight:bold; font-size:0.7rem; color:${timerColor};"><i class="fa-solid fa-clock"></i> ${timeDisplay}</span>
+      </div>
+      <div style="font-size:0.75rem; font-weight:bold; margin-bottom:4px; color:#fff;">${o.name} (${tableText})</div>
+      <div style="border-bottom:1px dashed rgba(255,255,255,0.05); padding-bottom:6px; margin-bottom:6px;">${itemsList}</div>
+      <div style="font-size:0.65rem; color:var(--text-light-muted); margin-bottom:4px;">ملاحظات: <strong style="color:var(--primary-yellow);">${o.notes || '-'}</strong></div>
+      ${currentChef ? `<div style="font-size:0.65rem; color:var(--color-ready); margin-bottom:4px;"><i class="fa-solid fa-user-ninja"></i> طباخ: ${currentChef}</div>` : ''}
+      ${chefsOptions}
+      ${btnAction}
+    `;
+    
+    if (o.status === 'new' || o.status === 'pending_payment') {
+      newCol.appendChild(card);
+      newCount++;
+    } else if (o.status === 'paid') {
+      paidCol.appendChild(card);
+      paidCount++;
+    } else if (o.status === 'preparing') {
+      prepCol.appendChild(card);
+      prepCount++;
+    } else if (o.status === 'ready') {
+      readyCol.appendChild(card);
+      readyCount++;
+    }
+  });
+  
+  // Update counts badge
+  document.getElementById('kds-count-new').innerText = newCount;
+  document.getElementById('kds-count-paid').innerText = paidCount;
+  document.getElementById('kds-count-preparing').innerText = prepCount;
+  document.getElementById('kds-count-ready').innerText = readyCount;
+}
+
+window.transitionKdsStatus = function(orderId, nextStatus) {
+  AudioSynthesizer.playBeep();
+  const order = AppState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  const originalStatus = order.status;
+  order.status = nextStatus;
+  if (nextStatus === 'paid') order.paymentStatus = 'paid';
+  if (nextStatus === 'delivered') {
+    order.status = 'completed'; // unify status name
+    order.paymentStatus = 'paid';
+    
+    // Add transaction to Cashier shift till
+    if (AppState.cashierShift.open) {
+      AppState.cashierShift.currentCash += order.total;
+    }
+  }
+  
+  saveToLocalStorage();
+  
+  // Log operational action
+  logAuditTrail(
+    AppState.customerName || 'المدير فهد',
+    `تغيير حالة الطلب ${orderId} من '${originalStatus}' إلى '${nextStatus}'`,
+    `Changed order ${orderId} status from '${originalStatus}' to '${nextStatus}'`
+  );
+  
+  // Supabase update
+  if (supabaseClient) {
+    supabaseClient
+      .from('orders')
+      .update({ status: order.status, payment_status: order.paymentStatus })
+      .eq('id', orderId)
+      .then(res => console.log('KDS Supabase status sync:', res));
+  }
+  
+  renderAdminKitchenKDS();
+  renderAdminDashboard();
+  renderAdminCashierTill();
+};
+
+window.assignKdsChef = function(orderId, chefName) {
+  AudioSynthesizer.playBeep();
+  const order = AppState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  order.assignedChef = chefName;
+  saveToLocalStorage();
+  
+  logAuditTrail(
+    'المدير فهد',
+    `تعيين الشيف ${chefName || 'ملغي'} للطلب ${orderId}`,
+    `Assigned chef ${chefName || 'none'} to order ${orderId}`
+  );
+  
+  renderAdminKitchenKDS();
+};
+
+// --------------------------------------------------------------------------
+// MODULE 4: CASHIER & FINANCIALS LOGIC
+// --------------------------------------------------------------------------
+function renderAdminCashierTill() {
+  const L = TRANSLATIONS[AppState.selectedLang];
+  const container = document.getElementById('cashier-shift-status-container');
+  const logsContainer = document.getElementById('cashier-audit-till-logs');
+  const trContainer = document.getElementById('cashier-transactions-table-rows');
+  
+  if (!container || !trContainer || !logsContainer) return;
+  
+  // Render Shift panel
+  const shift = AppState.cashierShift;
+  if (shift.open) {
+    container.innerHTML = `
+      <div style="background-color:rgba(16, 185, 129, 0.1); border:1px solid var(--color-ready); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+        <span style="font-size:0.75rem; font-weight:bold; color:var(--color-ready);"><i class="fa-solid fa-lock-open"></i> الوردية مفتوحة ونشطة</span>
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+          <span>العهدة الافتتاحية:</span>
+          <strong>${shift.openingFloat.toFixed(2)} SAR</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:bold; color:#fff;">
+          <span>الخزينة النقدية الحالية:</span>
+          <span style="color:var(--primary-yellow);">${shift.currentCash.toFixed(2)} SAR</span>
+        </div>
+        <div style="font-size:0.7rem; color:var(--text-light-muted); margin-top:4px;">وقت البدء: ${shift.openingTime}</div>
+        <button class="sim-btn" onclick="window.closeCashierShift()" style="margin-top:8px; padding:8px; font-size:0.75rem; background-color:rgba(239, 68, 68, 0.15); border-color:var(--primary-red); color:var(--primary-red); font-weight:bold;">
+          <i class="fa-solid fa-lock"></i> إقفال الوردية الحالية وتصدير التقرير
+        </button>
+      </div>
+    `;
+  } else {
+    container.innerHTML = `
+      <div style="background-color:rgba(239, 68, 68, 0.1); border:1px solid var(--primary-red); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; text-align:center;">
+        <span style="font-size:0.75rem; font-weight:bold; color:var(--primary-red);"><i class="fa-solid fa-lock"></i> الوردية مغلقة حالياً</span>
+        <p style="font-size:0.7rem; color:var(--text-light-muted); line-height:1.4;">يرجى فتح صندوق الخزينة والوردية للبدء بتأكيد تحصيل مبيعات اليوم والمدفوعات.</p>
+        <button class="sim-btn" onclick="window.triggerOpenShiftModal()" style="margin-top:8px; padding:8px; font-size:0.75rem; background-color:var(--primary-yellow); color:#121214; border:none; font-weight:bold;">
+          <i class="fa-solid fa-key"></i> فتح الوردية وتثبيت العهدة
+        </button>
+      </div>
+    `;
+  }
+  
+  // Render Shift audit logs
+  logsContainer.innerHTML = shift.tillLogs.length === 0 
+    ? `<div style="text-align:center; padding:10px;">لا توجد حركات تسوية بالخزينة</div>`
+    : shift.tillLogs.map(l => `
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.02); padding-bottom:4px;">
+          <span>${l.desc}</span>
+          <strong style="color:var(--color-ready);">${l.amount > 0 ? '+' : ''}${l.amount.toFixed(2)}</strong>
+        </div>
+      `).join('');
+      
+  // Render Transactions table
+  trContainer.innerHTML = '';
+  const sortedOrders = AppState.orders.slice().reverse();
+  
+  if (sortedOrders.length === 0) {
+    trContainer.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-light-muted); padding:20px;">لا تتوفر معاملات فواتير لليوم</td></tr>`;
+  } else {
+    sortedOrders.forEach(o => {
+      let payTag = `<span class="badge-pay ${o.paymentStatus}">${o.paymentStatus === 'paid' ? 'مدفوع' : 'غير مدفوع'}</span>`;
+      let btnAction = '';
+      
+      if (o.paymentStatus !== 'paid') {
+        btnAction = `
+          <button class="sim-btn" onclick="window.approveCashierPayment('${o.id}', 'cash')" style="padding:4px 8px; font-size:0.65rem; background:#10B981; border:none; color:#fff;">نقدي</button>
+          <button class="sim-btn" onclick="window.approveCashierPayment('${o.id}', 'mada')" style="padding:4px 8px; font-size:0.65rem; background:#3B82F6; border:none; color:#fff; margin-right:4px;">مدى/شبكة</button>
+        `;
+      } else {
+        btnAction = `
+          <button class="sim-btn" onclick="window.refundCashierPayment('${o.id}')" style="padding:4px 8px; font-size:0.65rem; background-color:rgba(239, 68, 68, 0.15); border-color:var(--primary-red); color:var(--primary-red);">استرجاع (Refund)</button>
+        `;
+      }
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:900; color:var(--primary-red);">${o.id}</td>
+        <td style="font-weight:700;">${o.name}</td>
+        <td style="font-weight:800; color:var(--primary-yellow);">${o.total.toFixed(2)} ${L.sar}</td>
+        <td style="font-size:0.75rem; color:var(--text-light-muted);">${o.paymentMethod || '-'}</td>
+        <td>${payTag}</td>
+        <td>${btnAction}</td>
+      `;
+      trContainer.appendChild(tr);
+    });
+  }
+}
+
+window.triggerOpenShiftModal = function() {
+  AudioSynthesizer.playBeep();
+  const modal = document.getElementById('modal-open-shift-cashier');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeCashierShift = function() {
+  AudioSynthesizer.playBeep();
+  const shift = AppState.cashierShift;
+  const L = TRANSLATIONS[AppState.selectedLang];
+  
+  if (!shift.open) return;
+  
+  const expectedTotal = shift.openingFloat + shift.tillLogs.reduce((acc, curr) => acc + curr.amount, 0);
+  const diff = shift.currentCash - expectedTotal;
+  const nowStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  
+  let reportMsg = `
+=== تقرير إقفال الخزينة الفوري ===
+وقت الإغلاق: ${nowStr}
+العهدة الافتتاحية: ${shift.openingFloat.toFixed(2)} SAR
+إجمالي المبيعات المسجلة: ${(shift.currentCash - shift.openingFloat).toFixed(2)} SAR
+المبلغ المتوقع بالصندوق: ${expectedTotal.toFixed(2)} SAR
+المبلغ الفعلي المتوفر: ${shift.currentCash.toFixed(2)} SAR
+الفروقات والعجز المالي: ${diff.toFixed(2)} SAR
+----------------------------
+  `;
+  
+  alert(reportMsg);
+  
+  shift.open = false;
+  shift.closingTime = nowStr;
+  shift.tillLogs = [];
+  saveToLocalStorage();
+  
+  logAuditTrail(
+    'أمين الخزينة خالد',
+    `تم إغلاق الوردية التشغيلية وتسوية الصندوق المالي بفرق ${diff.toFixed(2)} ر.س`,
+    `Closed cashier shift with till difference of ${diff.toFixed(2)} SAR`
+  );
+  
+  renderAdminCashierTill();
+};
+
+window.approveCashierPayment = function(orderId, method) {
+  AudioSynthesizer.playBeep();
+  const order = AppState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  order.paymentStatus = 'paid';
+  order.paymentMethod = method;
+  
+  // If order status is pending_payment (new), advance it to 'paid' so it appears for chefs in KDS
+  if (order.status === 'new' || order.status === 'pending_payment') {
+    order.status = 'paid';
+  }
+  
+  // Register financial log
+  if (AppState.cashierShift.open) {
+    AppState.cashierShift.currentCash += order.total;
+    AppState.cashierShift.tillLogs.unshift({
+      desc: `مبيعات طلب ${orderId} (${method})`,
+      amount: order.total
+    });
+  }
+  
+  saveToLocalStorage();
+  
+  logAuditTrail(
+    'أمين الخزينة خالد',
+    `تحصيل الفاتورة للطلب ${orderId} عن طريق (${method}) بمبلغ ${order.total.toFixed(2)} ر.س`,
+    `Approved payment for order ${orderId} via (${method})`
+  );
+  
+  // Supabase update
+  if (supabaseClient) {
+    supabaseClient
+      .from('orders')
+      .update({ status: order.status, payment_status: 'paid', payment_method: method })
+      .eq('id', orderId)
+      .then(res => console.log('Cashier Payment Supabase sync:', res));
+  }
+  
+  renderAdminCashierTill();
+  renderAdminKitchenKDS();
+  renderAdminDashboard();
+};
+
+window.refundCashierPayment = function(orderId) {
+  AudioSynthesizer.playBeep();
+  if (!confirm(AppState.selectedLang === 'ar' ? `هل أنت متأكد من استرجاع وإلغاء تحصيل الفاتورة للطلب ${orderId}؟` : `Are you sure you want to refund order ${orderId}?`)) return;
+  
+  const order = AppState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  order.paymentStatus = 'refunded';
+  const refundAmount = order.total;
+  
+  if (AppState.cashierShift.open) {
+    AppState.cashierShift.currentCash -= refundAmount;
+    AppState.cashierShift.tillLogs.unshift({
+      desc: `استرجاع مبيعات طلب ${orderId}`,
+      amount: -refundAmount
+    });
+  }
+  
+  saveToLocalStorage();
+  
+  logAuditTrail(
+    'أمين الخزينة خالد',
+    `استرجاع وردّ مبلغ الفاتورة للطلب ${orderId} بقيمة ${refundAmount.toFixed(2)} ر.س`,
+    `Issued a refund for order ${orderId} of ${refundAmount.toFixed(2)} SAR`
+  );
+  
+  if (supabaseClient) {
+    supabaseClient
+      .from('orders')
+      .update({ status: 'completed', payment_status: 'refunded' })
+      .eq('id', orderId)
+      .then(res => console.log('Refund Supabase sync:', res));
+  }
+  
+  renderAdminCashierTill();
+  renderAdminKitchenKDS();
+  renderAdminDashboard();
+};
+
+// --------------------------------------------------------------------------
+// MODULE 5: TABLE MANAGEMENT & SALOON MAP
+// --------------------------------------------------------------------------
+function renderAdminTablesGrid() {
+  const container = document.getElementById('admin-interactive-tables-grid');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  const total = AppState.totalTables || 12;
+  for (let i = 1; i <= total; i++) {
+    // Determine table status by active orders
+    const tableOrders = AppState.orders.filter(o => o.table === i && o.status !== 'delivered' && o.status !== 'completed');
+    
+    let tableStatus = 'available'; // available, occupied, preparing, waiting
+    let activeOrder = null;
+    
+    if (tableOrders.length > 0) {
+      activeOrder = tableOrders[0];
+      if (activeOrder.status === 'pending_payment') {
+        tableStatus = 'waiting';
+      } else if (activeOrder.status === 'preparing' || activeOrder.status === 'paid') {
+        tableStatus = 'preparing';
+      } else if (activeOrder.status === 'ready') {
+        tableStatus = 'occupied';
+      }
+    }
+    
+    const node = document.createElement('div');
+    node.className = `table-node ${tableStatus}`;
+    
+    let label = '';
+    if (tableStatus === 'available') label = (AppState.selectedLang === 'ar' ? 'شاغرة (متاحة)' : 'Available');
+    if (tableStatus === 'waiting') label = (AppState.selectedLang === 'ar' ? 'بانتظار الدفع' : 'Unpaid Check');
+    if (tableStatus === 'preparing') label = (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'Cooking');
+    if (tableStatus === 'occupied') label = (AppState.selectedLang === 'ar' ? 'بانتظار الاستلام' : 'Ready / Occupied');
+    
+    node.innerHTML = `
+      <span class="number">${i}</span>
+      <span class="status-text">${label}</span>
+      ${activeOrder ? `<div style="font-size:0.6rem; font-weight:bold; color:var(--primary-yellow); margin-top:6px;">${activeOrder.id} - ${activeOrder.total.toFixed(1)} ر.س</div>` : ''}
+    `;
+    
+    node.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      if (activeOrder) {
+        window.triggerAdminTableAction(i, activeOrder);
+      } else {
+        alert(AppState.selectedLang === 'ar' ? `الطاولة رقم ${i} شاغرة حالياً ومتاحة للعملاء.` : `Table ${i} is currently clean and vacant.`);
+      }
+    });
+    
+    container.appendChild(node);
+  }
+}
+
+window.triggerAdminTableAction = function(tableNum, order) {
+  const L = TRANSLATIONS[AppState.selectedLang];
+  const choice = prompt(
+    AppState.selectedLang === 'ar'
+      ? `خيارات الطاولة ${tableNum} (الطلب ${order.id}):\n1. نقل الطلب لطاولة أخرى\n2. مسح رمز QR\nأدخل الرقم (1-2):`
+      : `Table ${tableNum} options (Order ${order.id}):\n1. Transfer order to another table\n2. Scan/View QR code\nEnter option (1-2):`
+  );
+  
+  if (choice === '1') {
+    const targetTableStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل رقم الطاولة المستهدفة لنقل الطلب إليها:' : 'Enter target table number:');
+    const targetTable = parseInt(targetTableStr);
+    
+    if (isNaN(targetTable) || targetTable < 1 || targetTable > AppState.totalTables) {
+      alert(AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح!' : 'Invalid table number!');
+      return;
+    }
+    
+    const originalTable = order.table;
+    order.table = targetTable;
+    saveToLocalStorage();
+    
+    logAuditTrail(
+      'مدير الصالة فهد',
+      `تم نقل الطلب ${order.id} من الطاولة ${originalTable} إلى الطاولة ${targetTable}`,
+      `Transferred order ${order.id} from Table ${originalTable} to Table ${targetTable}`
+    );
+    
+    renderAdminTablesGrid();
+  } else if (choice === '2') {
+    // Generate QR link
+    let href = window.location.href.split('?')[0].split('#')[0];
+    const tableUrl = `${href}?table=${tableNum}`;
+    alert(`QR Code Link Table ${tableNum}: \n${tableUrl}`);
+  }
+};
+
+// --------------------------------------------------------------------------
+// MODULE 7: CATEGORIES MANAGEMENT PANEL
+// --------------------------------------------------------------------------
+function renderAdminCategoriesPanel() {
+  const container = document.getElementById('admin-panel-categories-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  CATEGORIES.forEach(c => {
+    if (c.id === 'all') return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:800; color:var(--primary-yellow);">${c.id}</td>
+      <td style="font-weight:700;">${c.nameAr}</td>
+      <td style="font-weight:700;">${c.nameEn}</td>
+      <td style="text-align:center;">
+        <button class="sim-btn" onclick="window.deleteAdminCategory('${c.id}')" style="padding:4px 8px; font-size:0.65rem; background-color:rgba(239, 68, 68, 0.15); border-color:var(--primary-red); color:var(--primary-red);"><i class="fa-solid fa-trash"></i> حذف</button>
+      </td>
+    `;
+    container.appendChild(tr);
+  });
+}
+
+window.deleteAdminCategory = function(catId) {
+  AudioSynthesizer.playBeep();
+  if (!confirm(AppState.selectedLang === 'ar' ? `هل أنت متأكد من حذف قسم المنيو '${catId}' بالكامل؟` : `Are you sure you want to delete category '${catId}'?`)) return;
+  
+  const existingIdx = CATEGORIES.findIndex(c => c.id === catId);
+  if (existingIdx > -1) {
+    CATEGORIES.splice(existingIdx, 1);
+    saveToLocalStorage();
+    
+    logAuditTrail(
+      'المدير فهد',
+      `تم حذف قسم المنيو '${catId}' بالكامل`,
+      `Deleted categories catalog ID '${catId}'`
+    );
+    
+    if (supabaseClient) {
+      supabaseClient
+        .from('categories')
+        .delete()
+        .eq('id', catId)
+        .then(res => console.log('Category Supabase deletion:', res));
+    }
+    
+    renderAdminCategoriesPanel();
+    renderAdminMenuManage(); // refresh menu products list
+  }
+};
+
+// --------------------------------------------------------------------------
+// MODULE 8: CUSTOMERS MANAGEMENT PANEL
+// --------------------------------------------------------------------------
+function renderAdminCustomersRoster() {
+  const container = document.getElementById('admin-customers-table-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  // Aggregate customer details from database sync or local memory
+  const customersList = [];
+  const processedPhones = new Set();
+  
+  AppState.orders.forEach(o => {
+    if (!o.phone || processedPhones.has(o.phone)) return;
+    processedPhones.add(o.phone);
+    
+    const clientOrders = AppState.orders.filter(ord => ord.phone === o.phone);
+    const totalSpent = clientOrders.reduce((sum, curr) => sum + (curr.paymentStatus === 'paid' ? curr.total : 0), 0);
+    const isBanned = AppState.bannedCustomers && AppState.bannedCustomers.includes(o.phone);
+    
+    customersList.push({
+      name: o.name || 'عميل مميز',
+      phone: o.phone,
+      regDate: '2026/05/20', // placeholder date
+      ordersCount: clientOrders.length,
+      spending: totalSpent,
+      banned: isBanned
+    });
+  });
+  
+  if (customersList.length === 0) {
+    container.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-light-muted); padding:20px;">لا يوجد سجل عملاء نشطين حالياً</td></tr>`;
+  } else {
+    customersList.forEach(c => {
+      let statusTag = c.banned 
+        ? `<span class="badge-status" style="background-color:rgba(239, 68, 68, 0.15); color:#EF4444; border:1px solid rgba(239, 68, 68, 0.3);">محظور (Banned)</span>`
+        : `<span class="badge-status ready" style="padding:4px 8px; font-size:0.65rem;">نشط (Active)</span>`;
+        
+      let toggleBanBtn = c.banned
+        ? `<button class="sim-btn" onclick="window.toggleBanCustomer('${c.phone}', false)" style="padding:4px 8px; font-size:0.65rem; background:#10B981; border:none; color:#fff;">إلغاء الحظر</button>`
+        : `<button class="sim-btn" onclick="window.toggleBanCustomer('${c.phone}', true)" style="padding:4px 8px; font-size:0.65rem; background-color:rgba(239, 68, 68, 0.15); border-color:var(--primary-red); color:var(--primary-red);">حظر العميل</button>`;
+        
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:700;">${c.name}</td>
+        <td style="font-size:0.75rem; color:var(--text-light-muted);">${c.phone}</td>
+        <td style="font-size:0.75rem; color:var(--text-light-muted);">${c.regDate}</td>
+        <td style="font-weight:700; text-align:center;">${c.ordersCount}</td>
+        <td style="font-weight:800; color:var(--primary-yellow);">${c.spending.toFixed(2)} SAR</td>
+        <td>${statusTag}</td>
+        <td style="text-align:center; display:flex; gap:6px; justify-content:center;">
+          ${toggleBanBtn}
+          <button class="sim-btn" onclick="window.viewCustomerHistory('${c.phone}')" style="padding:4px 8px; font-size:0.65rem; background:rgba(255,255,255,0.05); border:1px solid var(--dark-border); color:#fff;"><i class="fa-solid fa-clock-rotate-left"></i> سجل الوجبات</button>
+        </td>
+      `;
+      container.appendChild(tr);
+    });
+  }
+}
+
+window.toggleBanCustomer = function(phone, banState) {
+  AudioSynthesizer.playBeep();
+  if (!AppState.bannedCustomers) AppState.bannedCustomers = [];
+  
+  if (banState) {
+    if (!AppState.bannedCustomers.includes(phone)) AppState.bannedCustomers.push(phone);
+    logAuditTrail('المدير فهد', `حظر العميل ذو الهاتف ${phone}`, `Banned guest account ${phone}`);
+  } else {
+    AppState.bannedCustomers = AppState.bannedCustomers.filter(p => p !== phone);
+    logAuditTrail('المدير فهد', `إلغاء حظر العميل ذو الهاتف ${phone}`, `Unbanned guest account ${phone}`);
+  }
+  
+  saveToLocalStorage();
+  renderAdminCustomersRoster();
+};
+
+window.viewCustomerHistory = function(phone) {
+  AudioSynthesizer.playBeep();
+  const history = AppState.orders.filter(o => o.phone === phone);
+  const historyStr = history.map(o => `${o.id} - ${o.timestamp} - المجموع: ${o.total.toFixed(1)} SAR (${o.items.map(i => i.qty + 'x ' + i.nameAr).join(', ')})`).join('\n\n');
+  alert(historyStr || 'لا توجد طلبيات سابقة لهذا العميل.');
+};
+
+// --------------------------------------------------------------------------
+// MODULE 9: INVENTORY & SAFETY STOCKS
+// --------------------------------------------------------------------------
+function renderAdminInventoryStock() {
+  const container = document.getElementById('admin-inventory-table-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  AppState.inventory.forEach(item => {
+    const pct = Math.min(100, (item.stock / (item.minLimit * 2)) * 100);
+    let levelClass = 'safe';
+    if (item.stock <= item.minLimit) levelClass = 'warning';
+    if (item.stock <= item.minLimit * 0.5) levelClass = 'danger';
+    
+    let dangerTag = item.stock <= item.minLimit
+      ? `<span class="badge-status" style="background-color:rgba(239, 68, 68, 0.15); color:#EF4444; border:1px solid rgba(239, 68, 68, 0.3);"><i class="fa-solid fa-triangle-exclamation"></i> عجز بالكمية</span>`
+      : `<span class="badge-status ready" style="padding:4px 8px; font-size:0.65rem;">مستوى آمن</span>`;
+      
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:700;">${AppState.selectedLang === 'ar' ? item.nameAr : item.nameEn}</td>
+      <td style="font-weight:800; color:var(--primary-yellow);">${item.stock}</td>
+      <td style="font-size:0.75rem; color:var(--text-light-muted);">${item.minLimit}</td>
+      <td>
+        <div class="inventory-progress-wrap">
+          <div class="inventory-progress-bar">
+            <div class="inventory-progress-fill ${levelClass}" style="width: ${pct}%;"></div>
+          </div>
+          <span style="font-size:0.65rem; color:var(--text-light-muted);">${pct.toFixed(0)}% من طاقة الاستيعاب</span>
+        </div>
+      </td>
+      <td style="font-size:0.75rem; color:var(--text-light-muted);">${item.supplier}</td>
+      <td style="text-align:center;">
+        <button class="sim-btn" onclick="window.triggerInventoryAdjust('${item.id}')" style="padding:4px 10px; font-size:0.75rem; background-color:var(--primary-yellow-light); border:1px solid var(--primary-yellow); color:var(--text-dark); font-weight:bold;">
+          <i class="fa-solid fa-pen-to-square"></i> تعديل وجرد
+        </button>
+      </td>
+    `;
+    container.appendChild(tr);
+  });
+}
+
+window.triggerInventoryAdjust = function(itemId) {
+  AudioSynthesizer.playBeep();
+  const select = document.getElementById('edit-inventory-item-id');
+  if (select) {
+    select.innerHTML = '';
+    AppState.inventory.forEach(inv => {
+      const opt = document.createElement('option');
+      opt.value = inv.id;
+      opt.innerText = AppState.selectedLang === 'ar' ? inv.nameAr : inv.nameEn;
+      if (inv.id === itemId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+  
+  const modal = document.getElementById('modal-inventory-audit');
+  if (modal) modal.style.display = 'flex';
+};
+
+// --------------------------------------------------------------------------
+// MODULE 10: EMPLOYEES & STAFF ROSTER
+// --------------------------------------------------------------------------
+function renderAdminEmployeesRoster() {
+  const container = document.getElementById('admin-employees-table-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  AppState.employees.forEach(emp => {
+    let roleText = '';
+    if (emp.role === 'admin') roleText = 'مالك المطعم (Admin)';
+    if (emp.role === 'manager') roleText = 'مدير الصالة (Manager)';
+    if (emp.role === 'cashier') roleText = 'أمين الصندوق (Cashier)';
+    if (emp.role === 'kitchen') roleText = 'طاقم المطبخ (Kitchen)';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:700;">${emp.name}</td>
+      <td style="font-size:0.75rem; color:var(--text-light-muted);">${emp.phone}</td>
+      <td style="font-weight:bold; color:var(--primary-yellow);">${roleText}</td>
+      <td style="font-family:monospace; font-weight:bold; letter-spacing:3px;">****</td>
+      <td style="text-align:center; display:flex; gap:8px; justify-content:center;">
+        <button class="sim-btn" onclick="window.triggerEditEmployee('${emp.id}')" style="padding:4px 8px; font-size:0.65rem; background:rgba(255,255,255,0.05); border:1px solid var(--dark-border); color:#fff;"><i class="fa-solid fa-edit"></i> تعديل</button>
+        <button class="sim-btn" onclick="window.deleteEmployeeRoster('${emp.id}')" style="padding:4px 8px; font-size:0.65rem; background-color:rgba(239, 68, 68, 0.15); border-color:var(--primary-red); color:var(--primary-red);"><i class="fa-solid fa-trash"></i> إنهاء الخدمات</button>
+      </td>
+    `;
+    container.appendChild(tr);
+  });
+}
+
+window.triggerEditEmployee = function(empId) {
+  AudioSynthesizer.playBeep();
+  const emp = AppState.employees.find(e => e.id === empId);
+  if (!emp) return;
+  
+  document.getElementById('employee-editor-title').innerText = AppState.selectedLang === 'ar' ? 'تعديل بيانات الموظف' : 'Edit Employee Details';
+  document.getElementById('edit-employee-id').value = emp.id;
+  document.getElementById('edit-emp-name').value = emp.name;
+  document.getElementById('edit-emp-phone').value = emp.phone;
+  document.getElementById('edit-emp-role').value = emp.role;
+  document.getElementById('edit-emp-pin').value = emp.pin;
+  
+  const modal = document.getElementById('modal-employee-editor');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.deleteEmployeeRoster = function(empId) {
+  AudioSynthesizer.playBeep();
+  if (empId === 'emp-01') {
+    alert(AppState.selectedLang === 'ar' ? 'لا يمكن إنهاء خدمات حساب المالك الافتراضي!' : 'Cannot delete the master Admin profile!');
+    return;
+  }
+  
+  if (!confirm(AppState.selectedLang === 'ar' ? 'هل أنت متأكد من إزالة هذا الموظف من الطاقم التشغيلي بالكامل؟' : 'Are you sure you want to fire this employee?')) return;
+  
+  const idx = AppState.employees.findIndex(e => e.id === empId);
+  if (idx > -1) {
+    const name = AppState.employees[idx].name;
+    AppState.employees.splice(idx, 1);
+    saveToLocalStorage();
+    
+    logAuditTrail('المدير فهد', `تم إنهاء خدمات الموظف: ${name}`, `Fired staff member: ${name}`);
+    renderAdminEmployeesRoster();
+  }
+};
+
+// --------------------------------------------------------------------------
+// MODULE 11: REPORTS MANAGER
+// --------------------------------------------------------------------------
+function renderAdminReportsPanel() {
+  const L = TRANSLATIONS[AppState.selectedLang];
+  const span = document.getElementById('select-report-span').value;
+  
+  // Calculate periods
+  let salesTotal = 0;
+  let orderCount = 0;
+  
+  AppState.orders.forEach(o => {
+    orderCount++;
+    if (o.paymentStatus === 'paid') {
+      salesTotal += o.total;
+    }
+  });
+  
+  // Multiply factor for span fallback visualization
+  let factor = 1.0;
+  if (span === 'weekly') factor = 6.4;
+  if (span === 'monthly') factor = 26.8;
+  if (span === 'yearly') factor = 312.0;
+  
+  const finalSales = salesTotal * factor;
+  const finalOrders = Math.floor(orderCount * factor);
+  const profitMargin = finalSales * 0.65; // gross 65% profit margins
+  
+  document.getElementById('report-sales-sum').innerText = finalSales.toFixed(2) + " " + L.sar;
+  document.getElementById('report-orders-count').innerText = finalOrders;
+  document.getElementById('report-profits-sum').innerText = profitMargin.toFixed(2) + " " + L.sar;
+  
+  // List bestseller items
+  const bestContainer = document.getElementById('report-bestsellers-list-container');
+  if (bestContainer) {
+    bestContainer.innerHTML = '';
+    const statsMap = {};
+    AppState.orders.forEach(o => {
+      o.items.forEach(itm => {
+        statsMap[itm.id] = (statsMap[itm.id] || 0) + itm.qty;
+      });
+    });
+    
+    const sorted = MENU.map(m => ({
+      name: AppState.selectedLang === 'ar' ? m.nameAr : m.nameEn,
+      qty: Math.floor((statsMap[m.id] || 0) * factor)
+    })).sort((a,b) => b.qty - a.qty);
+    
+    sorted.slice(0, 4).forEach(itm => {
+      if (itm.qty === 0) return;
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.fontSize = '0.8rem';
+      row.style.color = '#fff';
+      row.style.padding = '6px 0';
+      row.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+      
+      row.innerHTML = `<span>${itm.name}</span><strong style="color:var(--primary-yellow);">${itm.qty} قطعة</strong>`;
+      bestContainer.appendChild(row);
+    });
+    
+    if (bestContainer.children.length === 0) {
+      bestContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-light-muted);">لا توجد طلبيات بيع كافية لإجراء الإحصائية للفترة</div>`;
+    }
+  }
+  
+  // List Employees activity rows
+  const empActivity = document.getElementById('report-employees-activity-rows');
+  if (empActivity) {
+    empActivity.innerHTML = '';
+    
+    AppState.employees.forEach(emp => {
+      const ordersProcessed = Math.floor(Math.random() * 20 + 3);
+      const rating = emp.role === 'kitchen' ? 'ممتاز (4.8 ⭐️)' : emp.role === 'cashier' ? 'دقيق جداً (5.0 ⭐️)' : 'إشرافي (4.9 ⭐️)';
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:700;">${emp.name}</td>
+        <td style="font-size:0.75rem; color:var(--text-light-muted);">${emp.role.toUpperCase()}</td>
+        <td style="font-weight:bold; text-align:center;">${ordersProcessed}</td>
+        <td style="font-size:0.75rem; color:var(--color-ready);">${rating}</td>
+      `;
+      empActivity.appendChild(tr);
+    });
+  }
+}
+
+// --------------------------------------------------------------------------
+// MODULE 12: ANALYTICS CHARTS ENGINE (DYNAMIC SVG GENERATOR)
+// --------------------------------------------------------------------------
+function renderAdminAnalyticsCharts() {
+  const chartBox = document.getElementById('analytics-hourly-sales-chart');
+  if (!chartBox) return;
+  
+  // Aggregate sales by hour blocks: 12pm, 2pm, 4pm, 6pm, 8pm, 10pm, 12am
+  const hours = ['12 ظ', '2 ب.ظ', '4 ب.ظ', '6 م', '8 م', '10 م', '12 م'];
+  const dataPoints = [240.0, 180.0, 310.0, 580.0, 940.0, 1180.0, 420.0];
+  
+  // Renders a modern glassmorphic responsive SVG line curve chart!
+  let maxVal = Math.max(...dataPoints);
+  let height = 200;
+  let width = 500;
+  
+  let points = dataPoints.map((val, idx) => {
+    let x = (idx * (width / (dataPoints.length - 1))) + 20;
+    let y = height - ((val / maxVal) * (height - 40)) - 10;
+    return { x, y, val };
+  });
+  
+  let pathD = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+  
+  // Add gradient under the curve
+  let fillPathD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`;
+  
+  let gridLines = '';
+  for (let i = 1; i <= 3; i++) {
+    let yPos = (height / 4) * i;
+    gridLines += `<line x1="20" y1="${yPos}" x2="${width + 20}" y2="${yPos}" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4" />`;
+  }
+  
+  let labels = points.map((p, idx) => `
+    <text x="${p.x}" y="${height + 15}" fill="var(--text-light-muted)" font-size="9" text-anchor="middle" font-weight="bold">${hours[idx]}</text>
+    <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--primary-yellow)" stroke="#121214" stroke-width="2" />
+    <text x="${p.x}" y="${p.y - 10}" fill="#fff" font-size="8" text-anchor="middle" font-weight="900">${p.val.toFixed(0)}</text>
+  `).join('');
+  
+  let svg = `
+    <svg viewBox="0 0 ${width + 40} ${height + 25}" style="width:100%; height:100%; display:block; overflow:visible;">
+      <defs>
+        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--primary-yellow)" stop-opacity="0.18" />
+          <stop offset="100%" stop-color="var(--primary-yellow)" stop-opacity="0.0" />
+        </linearGradient>
+      </defs>
+      ${gridLines}
+      <path d="${fillPathD}" fill="url(#chartGrad)" />
+      <path d="${pathD}" fill="none" stroke="var(--primary-yellow)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+      ${labels}
+    </svg>
+  `;
+  
+  chartBox.innerHTML = svg;
+  
+  // Update Analytics KPIs
+  let totalSales = 0;
+  let paidOrders = 0;
+  AppState.orders.forEach(o => {
+    if (o.paymentStatus === 'paid') {
+      totalSales += o.total;
+      paidOrders++;
+    }
+  });
+  const avgCheck = paidOrders > 0 ? (totalSales / paidOrders) : 0;
+  document.getElementById('analytics-avg-check-value').innerText = avgCheck.toFixed(2) + " SAR";
+}
+
+// --------------------------------------------------------------------------
+// MODULE 13: CENTRAL ALERT NOTIFICATIONS
+// --------------------------------------------------------------------------
+function renderAdminNotificationsCenter() {
+  const container = document.getElementById('admin-notifications-center-feed');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  if (AppState.notifications.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding:30px 10px; color:var(--text-light-muted);">لا توجد إشعارات تشغيلية مسجلة حالياً</div>`;
+    return;
+  }
+  
+  AppState.notifications.forEach(n => {
+    const card = document.createElement('div');
+    card.style.display = 'flex';
+    card.style.alignItems = 'center';
+    card.style.gap = '14px';
+    card.style.padding = '12px 16px';
+    card.style.borderRadius = '12px';
+    card.style.border = '1px solid var(--dark-border)';
+    card.style.background = 'rgba(255,255,255,0.02)';
+    card.style.fontSize = '0.8rem';
+    card.style.color = '#fff';
+    
+    let iconHtml = '';
+    if (n.type === 'alert') iconHtml = `<i class="fa-solid fa-triangle-exclamation" style="font-size:1.25rem; color:var(--primary-red);"></i>`;
+    else iconHtml = `<i class="fa-solid fa-circle-info" style="font-size:1.25rem; color:#3B82F6;"></i>`;
+    
+    card.innerHTML = `
+      ${iconHtml}
+      <div style="flex: 1; text-align: right;">
+        <span style="font-weight:bold; color:var(--primary-yellow); display:block;">${AppState.selectedLang === 'ar' ? n.titleAr : n.titleEn}</span>
+        <span style="font-size:0.75rem; color:var(--text-light-muted); margin-top:2px; display:block;">${AppState.selectedLang === 'ar' ? n.descAr : n.descEn}</span>
+      </div>
+      <div style="font-size:0.7rem; color:var(--text-light-muted);">${n.time}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// --------------------------------------------------------------------------
+// MODULE 15: SECURITY AUDIT TRAILS LOGS
+// --------------------------------------------------------------------------
+function renderAdminAuditLogs() {
+  const container = document.getElementById('admin-audit-logs-rows-container');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  if (AppState.auditLogs.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-light-muted);">لا تتوفر حركات رقابية مسجلة حالياً</div>`;
+    return;
+  }
+  
+  AppState.auditLogs.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'audit-log-line';
+    
+    const actionText = AppState.selectedLang === 'ar' ? l.actionAr : l.actionEn;
+    
+    div.innerHTML = `
+      <span style="flex:2; font-weight:bold; color:#fff; text-align:right;">${actionText}</span>
+      <span style="flex:1; text-align:center; color:var(--primary-yellow); font-weight:800;">${l.user}</span>
+      <span style="flex:1; text-align:center; color:var(--text-light-muted);">${l.time}</span>
+      <span style="flex:1; text-align:left; color:var(--text-light-muted); font-family:monospace;">${l.ip}</span>
+    `;
+    container.appendChild(div);
+  });
 }
 
 function renderAdminDashboard() {
@@ -4633,6 +6371,11 @@ function renderAdminDashboard() {
           <td style="font-weight: 800; color:var(--primary-red);">${o.total.toFixed(2)} ${L.sar}</td>
           <td>${statusTag}</td>
           <td>${payTag}</td>
+          <td>
+            <button class="sim-btn" onclick="window.triggerOrderEditor('${o.id}')" style="padding:4px 8px; font-size:0.65rem; background:var(--primary-yellow-light); border:1px solid var(--primary-yellow); color:var(--text-dark); font-weight:bold;">
+              <i class="fa-solid fa-edit"></i> تعديل
+            </button>
+          </td>
         `;
         allRows.appendChild(tr);
       });
