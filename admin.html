@@ -808,6 +808,71 @@
               </button>
             </div>
         </div>
+
+        <!-- Card 3: General System Settings Configuration -->
+        <div class="admin-card" style="max-width: 600px; margin-top: 24px;">
+          <div class="admin-card-header">
+            <h3><i class="fa-solid fa-sliders" style="color: var(--primary-yellow);"></i> إعدادات تهيئة وتعديل تفاصيل المطعم والنظام</h3>
+          </div>
+          <form id="form-restaurant-settings" style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">اسم المطعم بالعربية:</label>
+                <input type="text" id="input-settings-name-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">اسم المطعم بالإنجليزية (EN):</label>
+                <input type="text" id="input-settings-name-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 120px 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">الضريبة المضافة (%):</label>
+                <input type="number" id="input-settings-vat-rate" min="0" max="100" value="15" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%; text-align: center;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">العملة (عربي):</label>
+                <input type="text" id="input-settings-currency-ar" value="ر.س" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">العملة (EN):</label>
+                <input type="text" id="input-settings-currency-en" value="SAR" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">ساعات العمل (عربي):</label>
+                <input type="text" id="input-settings-working-hours-ar" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">ساعات العمل (EN):</label>
+                <input type="text" id="input-settings-working-hours-en" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">ترويسة إيصال الطباعة (Print Header):</label>
+                <input type="text" id="input-settings-print-header" value="مطعم هاي بروست الفاخر" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px; display: block;">تذييل الإيصال (Print Footer):</label>
+                <input type="text" id="input-settings-print-footer" value="شكراً لزيارتكم - هاتف 920000000" style="background: var(--dark-input); border: 1px solid var(--dark-border); color: #fff; padding: 8px 12px; border-radius: 8px; width: 100%;">
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+              <input type="checkbox" id="input-settings-audio-enable" checked style="width: 18px; height: 18px; cursor: pointer;">
+              <label for="input-settings-audio-enable" style="font-size: 0.8rem; color: #fff; font-weight: bold; cursor: pointer;">تفعيل التنبيهات الصوتية الحية عند استلام طلبات جديدة</label>
+            </div>
+
+            <button type="submit" class="sim-btn" style="align-self: start; margin-top: 8px; background: linear-gradient(135deg, var(--color-ready) 0%, #059669 100%); color: #fff; border: 1px solid rgba(255,255,255,0.05); padding: 10px 24px; font-weight: bold;">
+              <i class="fa-solid fa-floppy-disk"></i> حفظ كافة إعدادات تهيئة النظام
+            </button>
+          </form>
+        </div>
       </div>
 
       <!-- ==========================================================================

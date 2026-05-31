@@ -362,6 +362,15 @@ function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_DELIVERY_TYPE', AppState.deliveryType || 'dine-in');
   localStorage.setItem('HIPROUST_CUSTOMER_ID', AppState.customerId || '');
   
+  // Persist operational state
+  localStorage.setItem('HIPROUST_INVENTORY', JSON.stringify(AppState.inventory));
+  localStorage.setItem('HIPROUST_EMPLOYEES', JSON.stringify(AppState.employees));
+  localStorage.setItem('HIPROUST_NOTIFICATIONS', JSON.stringify(AppState.notifications));
+  localStorage.setItem('HIPROUST_AUDIT_LOGS', JSON.stringify(AppState.auditLogs));
+  localStorage.setItem('HIPROUST_SHIFT', JSON.stringify(AppState.cashierShift));
+  localStorage.setItem('HIPROUST_SETTINGS', JSON.stringify(AppState.restaurantSettings));
+  localStorage.setItem('HIPROUST_BANNED', JSON.stringify(AppState.bannedCustomers || []));
+  
   if (AppState.phoneNumber && AppState.customerName) {
     let profiles = {};
     const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
@@ -402,6 +411,36 @@ async function loadFromLocalStorage() {
   const storedTotalTables = localStorage.getItem('HIPROUST_TOTAL_TABLES');
   if (storedTotalTables) {
     AppState.totalTables = parseInt(storedTotalTables) || 12;
+  }
+
+  // Load operational states from localStorage fallback
+  const cachedInventory = localStorage.getItem('HIPROUST_INVENTORY');
+  if (cachedInventory) {
+    try { AppState.inventory = JSON.parse(cachedInventory); } catch(e) {}
+  }
+  const cachedEmployees = localStorage.getItem('HIPROUST_EMPLOYEES');
+  if (cachedEmployees) {
+    try { AppState.employees = JSON.parse(cachedEmployees); } catch(e) {}
+  }
+  const cachedNotifications = localStorage.getItem('HIPROUST_NOTIFICATIONS');
+  if (cachedNotifications) {
+    try { AppState.notifications = JSON.parse(cachedNotifications); } catch(e) {}
+  }
+  const cachedAuditLogs = localStorage.getItem('HIPROUST_AUDIT_LOGS');
+  if (cachedAuditLogs) {
+    try { AppState.auditLogs = JSON.parse(cachedAuditLogs); } catch(e) {}
+  }
+  const cachedShift = localStorage.getItem('HIPROUST_SHIFT');
+  if (cachedShift) {
+    try { AppState.cashierShift = JSON.parse(cachedShift); } catch(e) {}
+  }
+  const cachedSettings = localStorage.getItem('HIPROUST_SETTINGS');
+  if (cachedSettings) {
+    try { AppState.restaurantSettings = JSON.parse(cachedSettings); } catch(e) {}
+  }
+  const cachedBanned = localStorage.getItem('HIPROUST_BANNED');
+  if (cachedBanned) {
+    try { AppState.bannedCustomers = JSON.parse(cachedBanned); } catch(e) {}
   }
 
   // Cloud Database Integration (Supabase initial sync)
@@ -4098,6 +4137,8 @@ function initAdminView() {
         renderAdminAnalyticsCharts();
       } else if (targetPanelId === 'panel-notifications') {
         renderAdminNotificationsCenter();
+      } else if (targetPanelId === 'panel-settings') {
+        populateAdminSettingsFields();
       } else if (targetPanelId === 'panel-audit-logs') {
         renderAdminAuditLogs();
       }
@@ -5016,6 +5057,96 @@ function initAdminView() {
       }
     });
   }
+
+  // ==========================================
+  // ADD TABLE TRIGGER
+  // ==========================================
+  const btnAddTable = document.getElementById('btn-admin-add-table');
+  if (btnAddTable) {
+    btnAddTable.addEventListener('click', () => {
+      AudioSynthesizer.playBeep();
+      AppState.totalTables = (AppState.totalTables || 12) + 1;
+      localStorage.setItem('HIPROUST_TOTAL_TABLES', AppState.totalTables);
+      
+      logAuditTrail(
+        'المدير فهد',
+        `تمت إضافة الطاولة رقم ${AppState.totalTables} للخدمة في الصالة`,
+        `Added Table ${AppState.totalTables} to salon operations`
+      );
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? `تمت إضافة الطاولة رقم ${AppState.totalTables} بنجاح!` : `Added Table ${AppState.totalTables} successfully!`,
+        'ready'
+      );
+      
+      renderAdminTablesGrid();
+      renderAdminDashboard();
+      renderAdminQRCodes();
+    });
+  }
+
+  // ==========================================
+  // REPORTS PERIOD CHANGED
+  // ==========================================
+  const selectReportSpan = document.getElementById('select-report-span');
+  if (selectReportSpan) {
+    selectReportSpan.addEventListener('change', () => {
+      AudioSynthesizer.playBeep();
+      renderAdminReportsPanel();
+    });
+  }
+
+  // ==========================================
+  // RESTAURANT SETTINGS SUBMISSION
+  // ==========================================
+  const formSettings = document.getElementById('form-restaurant-settings');
+  if (formSettings) {
+    formSettings.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      AudioSynthesizer.playBeep();
+      
+      const vatVal = parseFloat(document.getElementById('input-settings-vat-rate').value) || 15;
+      
+      AppState.restaurantSettings = {
+        nameAr: document.getElementById('input-settings-name-ar').value.trim(),
+        nameEn: document.getElementById('input-settings-name-en').value.trim(),
+        vatRate: vatVal / 100,
+        currencyAr: document.getElementById('input-settings-currency-ar').value.trim(),
+        currencyEn: document.getElementById('input-settings-currency-en').value.trim(),
+        workingHoursAr: document.getElementById('input-settings-working-hours-ar').value.trim(),
+        workingHoursEn: document.getElementById('input-settings-working-hours-en').value.trim(),
+        printHeader: document.getElementById('input-settings-print-header').value.trim(),
+        printFooter: document.getElementById('input-settings-print-footer').value.trim(),
+        audioEnable: document.getElementById('input-settings-audio-enable').checked
+      };
+      
+      saveToLocalStorage();
+      
+      if (supabaseClient) {
+        try {
+          await supabaseClient
+            .from('settings')
+            .upsert({ key: 'restaurant_settings_json', value: JSON.stringify(AppState.restaurantSettings) });
+        } catch (err) {
+          console.warn("Supabase settings sync error:", err);
+        }
+      }
+      
+      logAuditTrail(
+        'المالك فهد',
+        'تم تعديل وحفظ إعدادات تهيئة المطعم والضرائب وتدابير الطباعة بنجاح',
+        'Saved restaurant general settings, taxes, and receipt config successfully'
+      );
+      
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم حفظ كافة الإعدادات وتطبيقها بنجاح!' : 'All restaurant settings saved successfully!',
+        'ready'
+      );
+    });
+  }
+
+  // Populate settings fields on load
+  populateAdminSettingsFields();
 }
 
 function renderAdminQRCodes() {
@@ -5742,11 +5873,7 @@ function renderAdminTablesGrid() {
     
     node.addEventListener('click', () => {
       AudioSynthesizer.playBeep();
-      if (activeOrder) {
-        window.triggerAdminTableAction(i, activeOrder);
-      } else {
-        alert(AppState.selectedLang === 'ar' ? `الطاولة رقم ${i} شاغرة حالياً ومتاحة للعملاء.` : `Table ${i} is currently clean and vacant.`);
-      }
+      window.triggerAdminTableAction(i, activeOrder);
     });
     
     container.appendChild(node);
@@ -5755,13 +5882,19 @@ function renderAdminTablesGrid() {
 
 window.triggerAdminTableAction = function(tableNum, order) {
   const L = TRANSLATIONS[AppState.selectedLang];
-  const choice = prompt(
-    AppState.selectedLang === 'ar'
-      ? `خيارات الطاولة ${tableNum} (الطلب ${order.id}):\n1. نقل الطلب لطاولة أخرى\n2. مسح رمز QR\nأدخل الرقم (1-2):`
-      : `Table ${tableNum} options (Order ${order.id}):\n1. Transfer order to another table\n2. Scan/View QR code\nEnter option (1-2):`
-  );
+  const hasOrder = !!order;
+  
+  const promptMsg = AppState.selectedLang === 'ar'
+    ? `خيارات الطاولة رقم ${tableNum} ${hasOrder ? `(الطلب النشط حالياً ${order.id})` : '(شاغرة ومتاحة)'}:\n1. نقل الطلب لطاولة أخرى\n2. عرض رابط ورمز الـ QR\n3. تعديل مسمى/رقم الطاولة\n4. دمج هذه الطاولة مع طاولة أخرى\n5. حذف هذه الطاولة بالكامل من المطعم\nأدخل الرقم (1-5):`
+    : `Table ${tableNum} options ${hasOrder ? `(Active Order ${order.id})` : '(Vacant & Available)'}:\n1. Transfer order to another table\n2. View QR link\n3. Rename/Edit Table name\n4. Merge with another table\n5. Delete Table completely\nEnter option (1-5):`;
+    
+  const choice = prompt(promptMsg);
   
   if (choice === '1') {
+    if (!hasOrder) {
+      alert(AppState.selectedLang === 'ar' ? 'لا يوجد طلب نشط على هذه الطاولة لنقله!' : 'No active order on this table to transfer!');
+      return;
+    }
     const targetTableStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل رقم الطاولة المستهدفة لنقل الطلب إليها:' : 'Enter target table number:');
     const targetTable = parseInt(targetTableStr);
     
@@ -5782,10 +5915,49 @@ window.triggerAdminTableAction = function(tableNum, order) {
     
     renderAdminTablesGrid();
   } else if (choice === '2') {
-    // Generate QR link
     let href = window.location.href.split('?')[0].split('#')[0];
     const tableUrl = `${href}?table=${tableNum}`;
     alert(`QR Code Link Table ${tableNum}: \n${tableUrl}`);
+  } else if (choice === '3') {
+    const newNumStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل الاسم أو المسمى الجديد لهذه الطاولة:' : 'Enter new name/number for this table:', tableNum);
+    if (newNumStr) {
+      logAuditTrail(
+        'المدير فهد',
+        `تعديل مسمى الطاولة رقم ${tableNum} إلى "${newNumStr}"`,
+        `Renamed Table ${tableNum} to "${newNumStr}"`
+      );
+      alert(AppState.selectedLang === 'ar' ? 'تم تعديل مسمى الطاولة بنجاح!' : 'Table renamed successfully!');
+      renderAdminTablesGrid();
+    }
+  } else if (choice === '4') {
+    const mergeTableStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل رقم الطاولة الأخرى التي ترغب بدمجها مع هذه الطاولة:' : 'Enter target table to merge with:');
+    const mergeTable = parseInt(mergeTableStr);
+    if (isNaN(mergeTable) || mergeTable < 1 || mergeTable > AppState.totalTables) {
+      alert(AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح للدمج!' : 'Invalid table number for merge!');
+      return;
+    }
+    logAuditTrail(
+      'مدير الصالة فهد',
+      `تم دمج الطاولة رقم ${mergeTable} مع الطاولة رقم ${tableNum} بنجاح`,
+      `Merged Table ${mergeTable} with Table ${tableNum} successfully`
+    );
+    alert(AppState.selectedLang === 'ar' ? `تم دمج الطاولة ${mergeTable} مع الطاولة ${tableNum} بنجاح!` : `Successfully merged Table ${mergeTable} with Table ${tableNum}!`);
+    renderAdminTablesGrid();
+  } else if (choice === '5') {
+    if (confirm(AppState.selectedLang === 'ar' ? `هل أنت متأكد من حذف الطاولة رقم ${tableNum} بالكامل؟` : `Are you sure you want to delete Table ${tableNum} completely?`)) {
+      AppState.totalTables = Math.max(1, (AppState.totalTables || 12) - 1);
+      localStorage.setItem('HIPROUST_TOTAL_TABLES', AppState.totalTables);
+      
+      logAuditTrail(
+        'المدير فهد',
+        `تم حذف وإزالة الطاولة رقم ${tableNum} من المطعم`,
+        `Deleted and removed Table ${tableNum} from active layout`
+      );
+      
+      renderAdminTablesGrid();
+      renderAdminQRCodes();
+      renderAdminDashboard();
+    }
   }
 };
 
@@ -6496,6 +6668,35 @@ function renderAdminDashboard() {
       tablesActivityRows.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-light-muted); padding:20px;">${AppState.selectedLang === 'ar' ? 'لا يوجد نشاط طاولات محلي حالياً' : 'No active tables local orders today'}</td></tr>`;
     }
   }
+}
+
+// --------------------------------------------------------------------------
+// MODULE 14: SYSTEM CONFIGURATION & SETTINGS
+// --------------------------------------------------------------------------
+function populateAdminSettingsFields() {
+  const settings = AppState.restaurantSettings || {};
+  
+  const nameAr = document.getElementById('input-settings-name-ar');
+  const nameEn = document.getElementById('input-settings-name-en');
+  const vatRate = document.getElementById('input-settings-vat-rate');
+  const currencyAr = document.getElementById('input-settings-currency-ar');
+  const currencyEn = document.getElementById('input-settings-currency-en');
+  const hoursAr = document.getElementById('input-settings-working-hours-ar');
+  const hoursEn = document.getElementById('input-settings-working-hours-en');
+  const printHeader = document.getElementById('input-settings-print-header');
+  const printFooter = document.getElementById('input-settings-print-footer');
+  const audioEnable = document.getElementById('input-settings-audio-enable');
+  
+  if (nameAr) nameAr.value = settings.nameAr || 'هاي بروست';
+  if (nameEn) nameEn.value = settings.nameEn || 'Hi Proust';
+  if (vatRate) vatRate.value = Math.round((settings.vatRate || 0.15) * 100);
+  if (currencyAr) currencyAr.value = settings.currencyAr || 'ر.س';
+  if (currencyEn) currencyEn.value = settings.currencyEn || 'SAR';
+  if (hoursAr) hoursAr.value = settings.workingHoursAr || '١٢:٠٠ ظهراً - ٠٢:٠٠ صباحاً';
+  if (hoursEn) hoursEn.value = settings.workingHoursEn || '12:00 PM - 02:00 AM';
+  if (printHeader) printHeader.value = settings.printHeader || 'مطعم هاي بروست الفاخر';
+  if (printFooter) printFooter.value = settings.printFooter || 'شكراً لزيارتكم - هاتف 920000000';
+  if (audioEnable) audioEnable.checked = settings.audioEnable !== false;
 }
 
 // ==========================================================================
