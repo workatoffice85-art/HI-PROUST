@@ -4124,6 +4124,8 @@ function initAdminView() {
           renderAdminCashierTill();
         } else if (targetPanelId === 'panel-tables') {
           renderAdminTablesGrid();
+        } else if (targetPanelId === 'panel-qrcodes') {
+          renderAdminQRCodes();
         } else if (targetPanelId === 'panel-menu-manage') {
           renderAdminMenuManage();
         } else if (targetPanelId === 'panel-categories') {
