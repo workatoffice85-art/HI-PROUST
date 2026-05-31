@@ -299,6 +299,8 @@ const AppState = {
   phoneNumber: '',
   customerName: '',
   cart: [], // Array of { id, qty }
+  customers: [],
+  tableNames: {},
   cartNotes: '',
   deliveryType: 'dine-in', // 'dine-in' | 'takeaway'
   activeOrderId: null, // Order currently being tracked by this phone instance
@@ -370,7 +372,18 @@ function saveToLocalStorage() {
   localStorage.setItem('HIPROUST_SHIFT', JSON.stringify(AppState.cashierShift));
   localStorage.setItem('HIPROUST_SETTINGS', JSON.stringify(AppState.restaurantSettings));
   localStorage.setItem('HIPROUST_BANNED', JSON.stringify(AppState.bannedCustomers || []));
-  
+  localStorage.setItem('HIPROUST_TABLE_NAMES', JSON.stringify(AppState.tableNames || {}));
+
+  // Sync all operational settings to Supabase (fire-and-forget)
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    supabaseClient.from('settings').upsert({ key: 'employees',              value: JSON.stringify(AppState.employees) }).catch(() => {});
+    supabaseClient.from('settings').upsert({ key: 'inventory',              value: JSON.stringify(AppState.inventory) }).catch(() => {});
+    supabaseClient.from('settings').upsert({ key: 'cashier_shift',           value: JSON.stringify(AppState.cashierShift) }).catch(() => {});
+    supabaseClient.from('settings').upsert({ key: 'restaurant_settings_json', value: JSON.stringify(AppState.restaurantSettings) }).catch(() => {});
+    supabaseClient.from('settings').upsert({ key: 'banned_customers',        value: JSON.stringify(AppState.bannedCustomers || []) }).catch(() => {});
+    supabaseClient.from('settings').upsert({ key: 'table_names',             value: JSON.stringify(AppState.tableNames || {}) }).catch(() => {});
+  }
+
   if (AppState.phoneNumber && AppState.customerName) {
     let profiles = {};
     const cachedProfiles = localStorage.getItem('HIPROUST_PROFILES');
@@ -412,6 +425,10 @@ async function loadFromLocalStorage() {
   if (storedTotalTables) {
     AppState.totalTables = parseInt(storedTotalTables) || 12;
   }
+  const storedTableNames = localStorage.getItem('HIPROUST_TABLE_NAMES');
+  if (storedTableNames) {
+    try { AppState.tableNames = JSON.parse(storedTableNames); } catch(e) {}
+  }
 
   // Load operational states from localStorage fallback
   const cachedInventory = localStorage.getItem('HIPROUST_INVENTORY');
@@ -452,21 +469,95 @@ async function loadFromLocalStorage() {
 async function syncCloudDatabase() {
   if (!supabaseClient) return;
 
-  if (!AppState.staticDataLoaded) {
-    // 0. Fetch Settings
-    try {
-      const { data: setVal } = await supabaseClient
-        .from('settings')
-        .select('*')
-        .eq('key', 'total_tables')
-        .single();
-      if (setVal && setVal.value) {
-        AppState.totalTables = parseInt(setVal.value) || 12;
+  // ── 0. Fetch ALL settings in one round-trip and apply selectively ────────
+  try {
+    const { data: settingsData } = await supabaseClient.from('settings').select('*');
+    if (settingsData && settingsData.length > 0) {
+      const get = (key) => settingsData.find(s => s.key === key);
+
+      // total_tables
+      const tblRow = get('total_tables');
+      if (tblRow) { AppState.totalTables = parseInt(tblRow.value) || 12; }
+
+      // table_names
+      const tnRow = get('table_names');
+      if (tnRow) { try { AppState.tableNames = JSON.parse(tnRow.value); } catch(e) {} }
+
+      // employees
+      const empRow = get('employees');
+      if (empRow) {
+        try {
+          const parsed = JSON.parse(empRow.value);
+          if (JSON.stringify(parsed) !== JSON.stringify(AppState.employees)) {
+            AppState.employees = parsed;
+            localStorage.setItem('HIPROUST_EMPLOYEES', JSON.stringify(parsed));
+            if (typeof renderAdminEmployeesRoster === 'function') renderAdminEmployeesRoster();
+          }
+        } catch(e) {}
+      } else {
+        // Seed employees from AppState if not yet in DB
+        supabaseClient.from('settings').upsert({ key: 'employees', value: JSON.stringify(AppState.employees) }).catch(() => {});
       }
-    } catch (err) {
-      console.warn("Supabase settings fetch error (ignoring migration fallback):", err);
+
+      // inventory
+      const invRow = get('inventory');
+      if (invRow) {
+        try {
+          const parsed = JSON.parse(invRow.value);
+          if (JSON.stringify(parsed) !== JSON.stringify(AppState.inventory)) {
+            AppState.inventory = parsed;
+            localStorage.setItem('HIPROUST_INVENTORY', JSON.stringify(parsed));
+            if (typeof renderAdminInventoryStock === 'function') renderAdminInventoryStock();
+          }
+        } catch(e) {}
+      } else {
+        // Seed inventory from AppState if not yet in DB
+        supabaseClient.from('settings').upsert({ key: 'inventory', value: JSON.stringify(AppState.inventory) }).catch(() => {});
+      }
+
+      // cashier_shift
+      const shiftRow = get('cashier_shift');
+      if (shiftRow) {
+        try {
+          const parsed = JSON.parse(shiftRow.value);
+          if (JSON.stringify(parsed) !== JSON.stringify(AppState.cashierShift)) {
+            AppState.cashierShift = parsed;
+            localStorage.setItem('HIPROUST_SHIFT', JSON.stringify(parsed));
+            if (typeof renderAdminCashierTill === 'function') renderAdminCashierTill();
+          }
+        } catch(e) {}
+      }
+
+      // restaurant_settings_json
+      const rsjRow = get('restaurant_settings_json');
+      if (rsjRow) {
+        try {
+          const parsed = JSON.parse(rsjRow.value);
+          if (JSON.stringify(parsed) !== JSON.stringify(AppState.restaurantSettings)) {
+            AppState.restaurantSettings = parsed;
+            localStorage.setItem('HIPROUST_SETTINGS', JSON.stringify(parsed));
+            if (typeof populateAdminSettingsFields === 'function') populateAdminSettingsFields();
+          }
+        } catch(e) {}
+      }
+
+      // banned_customers
+      const bannedRow = get('banned_customers');
+      if (bannedRow) {
+        try {
+          const parsed = JSON.parse(bannedRow.value);
+          if (JSON.stringify(parsed) !== JSON.stringify(AppState.bannedCustomers)) {
+            AppState.bannedCustomers = parsed;
+            localStorage.setItem('HIPROUST_BANNED', JSON.stringify(parsed));
+          }
+        } catch(e) {}
+      }
     }
-    
+  } catch (err) {
+    console.warn("Supabase settings sync error:", err);
+  }
+
+  if (!AppState.staticDataLoaded) {
     // 0.1 Fetch Physical Tables
     try {
       const { data: tablesData } = await supabaseClient
@@ -479,7 +570,7 @@ async function syncCloudDatabase() {
     } catch (err) {
       console.warn("Supabase tables fetch error:", err);
     }
-    
+
     // A. Fetch Categories
     try {
       const { data: catData, error: catError } = await supabaseClient
@@ -526,6 +617,14 @@ async function syncCloudDatabase() {
     }
 
     AppState.staticDataLoaded = true;
+  }
+
+  // D. Fetch registered Customers from DB (every sync cycle)
+  try {
+    const { data: customersData } = await supabaseClient.from('customers').select('*');
+    if (customersData) AppState.customers = customersData;
+  } catch (err) {
+    console.warn("Supabase customers fetch error:", err);
   }
 
   // C. Fetch Orders (Joined query for relational schema)
@@ -5069,22 +5168,37 @@ function initAdminView() {
   // ==========================================
   const btnAddTable = document.getElementById('btn-admin-add-table');
   if (btnAddTable) {
-    btnAddTable.addEventListener('click', () => {
+    btnAddTable.addEventListener('click', async () => {
       AudioSynthesizer.playBeep();
       AppState.totalTables = (AppState.totalTables || 12) + 1;
-      localStorage.setItem('HIPROUST_TOTAL_TABLES', AppState.totalTables);
-      
+      const newTableNum = AppState.totalTables;
+      localStorage.setItem('HIPROUST_TOTAL_TABLES', newTableNum);
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('settings').upsert({ key: 'total_tables', value: String(newTableNum) });
+          const qrBase = window.location.href.split('?')[0].split('#')[0];
+          await supabaseClient.from('tables')
+            .upsert({ table_number: newTableNum, qr_code: `${qrBase}?table=${newTableNum}` }, { onConflict: 'table_number' })
+            .catch(() => {});
+          const { data: tablesData } = await supabaseClient.from('tables').select('*');
+          if (tablesData) AppState.tables = tablesData;
+        } catch (err) {
+          console.warn('Supabase add table error:', err);
+        }
+      }
+
       logAuditTrail(
         'المدير فهد',
-        `تمت إضافة الطاولة رقم ${AppState.totalTables} للخدمة في الصالة`,
-        `Added Table ${AppState.totalTables} to salon operations`
+        `تمت إضافة الطاولة رقم ${newTableNum} للخدمة في الصالة`,
+        `Added Table ${newTableNum} to salon operations`
       );
-      
+
       showToastNotification(
-        AppState.selectedLang === 'ar' ? `تمت إضافة الطاولة رقم ${AppState.totalTables} بنجاح!` : `Added Table ${AppState.totalTables} successfully!`,
+        AppState.selectedLang === 'ar' ? `تمت إضافة الطاولة رقم ${newTableNum} بنجاح!` : `Added Table ${newTableNum} successfully!`,
         'ready'
       );
-      
+
       renderAdminTablesGrid();
       renderAdminDashboard();
       renderAdminQRCodes();
@@ -5871,8 +5985,9 @@ function renderAdminTablesGrid() {
     if (tableStatus === 'preparing') label = (AppState.selectedLang === 'ar' ? 'قيد التحضير' : 'Cooking');
     if (tableStatus === 'occupied') label = (AppState.selectedLang === 'ar' ? 'بانتظار الاستلام' : 'Ready / Occupied');
     
+    const tableDisplayName = (AppState.tableNames && AppState.tableNames[i]) ? AppState.tableNames[i] : String(i);
     node.innerHTML = `
-      <span class="number">${i}</span>
+      <span class="number" style="font-size:${tableDisplayName.length > 4 ? '0.75rem' : '1rem'}; word-break:break-word;">${tableDisplayName}</span>
       <span class="status-text">${label}</span>
       ${activeOrder ? `<div style="font-size:0.6rem; font-weight:bold; color:var(--primary-yellow); margin-top:6px;">${activeOrder.id} - ${activeOrder.total.toFixed(1)} ر.س</div>` : ''}
     `;
@@ -5998,12 +6113,16 @@ window.handleTableModalAction = function(actionType) {
     // Wait, let's make it alert only for the link as copying is easiest from prompt/alert, or show it. Let's keep a friendly message.
     alert(`رابط قائمة العميل للطاولة رقم ${tableNum}:\n\n${tableUrl}`);
   } else if (actionType === 'rename') {
-    const newNumStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل الاسم أو المسمى الجديد لهذه الطاولة:' : 'Enter new name/number for this table:', tableNum);
-    if (newNumStr) {
+    const currentLabel = (AppState.tableNames && AppState.tableNames[tableNum]) || String(tableNum);
+    const newNumStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل الاسم أو المسمى الجديد لهذه الطاولة:' : 'Enter new name/number for this table:', currentLabel);
+    if (newNumStr && newNumStr.trim()) {
+      if (!AppState.tableNames) AppState.tableNames = {};
+      AppState.tableNames[tableNum] = newNumStr.trim();
+      saveToLocalStorage(); // persists to Supabase settings via saveToLocalStorage
       logAuditTrail(
         'المدير فهد',
-        `تعديل مسمى الطاولة رقم ${tableNum} إلى "${newNumStr}"`,
-        `Renamed Table ${tableNum} to "${newNumStr}"`
+        `تعديل مسمى الطاولة رقم ${tableNum} إلى "${newNumStr.trim()}"`,
+        `Renamed Table ${tableNum} to "${newNumStr.trim()}"`
       );
       showToastNotification(
         AppState.selectedLang === 'ar' ? 'تم تعديل مسمى الطاولة بنجاح!' : 'Table renamed successfully!',
@@ -6038,6 +6157,15 @@ window.handleTableModalAction = function(actionType) {
     if (confirm(AppState.selectedLang === 'ar' ? `هل أنت متأكد من حذف الطاولة رقم ${tableNum} بالكامل؟` : `Are you sure you want to delete Table ${tableNum} completely?`)) {
       AppState.totalTables = Math.max(1, (AppState.totalTables || 12) - 1);
       localStorage.setItem('HIPROUST_TOTAL_TABLES', AppState.totalTables);
+
+      if (supabaseClient) {
+        supabaseClient.from('settings').upsert({ key: 'total_tables', value: String(AppState.totalTables) }).catch(() => {});
+        supabaseClient.from('tables').delete().eq('table_number', tableNum)
+          .then(async () => {
+            const { data } = await supabaseClient.from('tables').select('*');
+            if (data) AppState.tables = data;
+          }).catch(() => {});
+      }
       
       logAuditTrail(
         'المدير فهد',
@@ -6147,28 +6275,36 @@ function renderAdminCustomersRoster() {
   const container = document.getElementById('admin-customers-table-rows');
   if (!container) return;
   container.innerHTML = '';
-  
-  // Aggregate customer details from database sync or local memory
+
   const customersList = [];
-  const processedPhones = new Set();
-  
-  AppState.orders.forEach(o => {
-    if (!o.phone || processedPhones.has(o.phone)) return;
-    processedPhones.add(o.phone);
-    
-    const clientOrders = AppState.orders.filter(ord => ord.phone === o.phone);
-    const totalSpent = clientOrders.reduce((sum, curr) => sum + (curr.paymentStatus === 'paid' ? curr.total : 0), 0);
-    const isBanned = AppState.bannedCustomers && AppState.bannedCustomers.includes(o.phone);
-    
-    customersList.push({
-      name: o.name || 'عميل مميز',
-      phone: o.phone,
-      regDate: '2026/05/20', // placeholder date
-      ordersCount: clientOrders.length,
-      spending: totalSpent,
-      banned: isBanned
+
+  // PRIMARY: build list from Supabase-synced AppState.customers
+  if (AppState.customers && AppState.customers.length > 0) {
+    AppState.customers.forEach(c => {
+      const clientOrders = AppState.orders.filter(ord => ord.phone === c.phone);
+      const totalSpent = clientOrders.reduce((sum, curr) => sum + (curr.paymentStatus === 'paid' ? curr.total : 0), 0);
+      const isBanned = AppState.bannedCustomers && AppState.bannedCustomers.includes(c.phone);
+      let regDate = '—';
+      if (c.created_at) {
+        try {
+          const d = new Date(c.created_at);
+          regDate = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        } catch(e) {}
+      }
+      customersList.push({ name: c.name || 'عميل', phone: c.phone, regDate, ordersCount: clientOrders.length, spending: totalSpent, banned: isBanned });
     });
-  });
+  } else {
+    // FALLBACK: aggregate from orders if DB customers not yet loaded
+    const processedPhones = new Set();
+    AppState.orders.forEach(o => {
+      if (!o.phone || processedPhones.has(o.phone)) return;
+      processedPhones.add(o.phone);
+      const clientOrders = AppState.orders.filter(ord => ord.phone === o.phone);
+      const totalSpent = clientOrders.reduce((sum, curr) => sum + (curr.paymentStatus === 'paid' ? curr.total : 0), 0);
+      const isBanned = AppState.bannedCustomers && AppState.bannedCustomers.includes(o.phone);
+      customersList.push({ name: o.name || 'عميل مميز', phone: o.phone, regDate: '—', ordersCount: clientOrders.length, spending: totalSpent, banned: isBanned });
+    });
+  }
   
   if (customersList.length === 0) {
     container.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-light-muted); padding:20px;">لا يوجد سجل عملاء نشطين حالياً</td></tr>`;
