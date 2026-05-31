@@ -5925,13 +5925,19 @@ window.triggerAdminTableAction = function(tableNum, order) {
   const modal = document.getElementById('modal-table-actions');
   if (modal) {
     modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
   }
 };
 
 window.closeTableActionsModal = function() {
   const modal = document.getElementById('modal-table-actions');
   if (modal) {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
+    setTimeout(() => {
+      if (!modal.classList.contains('active')) {
+        modal.style.display = 'none';
+      }
+    }, 300);
   }
   window.currentModalTableNum = null;
   window.currentModalTableOrder = null;
@@ -6300,13 +6306,19 @@ window.viewCustomerHistory = function(phone) {
   const modal = document.getElementById('modal-customer-history');
   if (modal) {
     modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
   }
 };
 
 window.closeCustomerHistoryModal = function() {
   const modal = document.getElementById('modal-customer-history');
   if (modal) {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
+    setTimeout(() => {
+      if (!modal.classList.contains('active')) {
+        modal.style.display = 'none';
+      }
+    }, 300);
   }
 };
 
