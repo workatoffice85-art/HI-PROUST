@@ -5884,26 +5884,84 @@ function renderAdminTablesGrid() {
   }
 }
 
+window.currentModalTableNum = null;
+window.currentModalTableOrder = null;
+
 window.triggerAdminTableAction = function(tableNum, order) {
-  const L = TRANSLATIONS[AppState.selectedLang];
+  AudioSynthesizer.playBeep();
+  window.currentModalTableNum = tableNum;
+  window.currentModalTableOrder = order;
+
+  const numDisplay = document.getElementById('table-action-num-display');
+  if (numDisplay) {
+    numDisplay.innerText = tableNum;
+  }
+
+  const statusAlert = document.getElementById('table-action-status-alert');
+  if (statusAlert) {
+    const hasOrder = !!order;
+    if (hasOrder) {
+      statusAlert.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+      statusAlert.style.color = '#F59E0B';
+      statusAlert.style.border = '1px solid rgba(245, 158, 11, 0.25)';
+      statusAlert.innerHTML = AppState.selectedLang === 'ar'
+        ? `<i class="fa-solid fa-triangle-exclamation"></i> الطلب النشط حالياً: <strong>${order.id}</strong> (القيمة: ${order.total.toFixed(2)} ر.س)`
+        : `<i class="fa-solid fa-triangle-exclamation"></i> Active Order: <strong>${order.id}</strong> (Total: ${order.total.toFixed(2)} SAR)`;
+    } else {
+      statusAlert.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+      statusAlert.style.color = '#10B981';
+      statusAlert.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+      statusAlert.innerHTML = AppState.selectedLang === 'ar'
+        ? `<i class="fa-solid fa-circle-check"></i> الطاولة <strong>شاغرة ومتاحة</strong> حالياً`
+        : `<i class="fa-solid fa-circle-check"></i> Table is <strong>vacant and available</strong>`;
+    }
+  }
+
+  const checkoutBtn = document.getElementById('btn-table-action-checkout');
+  if (checkoutBtn) {
+    checkoutBtn.style.display = order ? 'flex' : 'none';
+  }
+
+  const modal = document.getElementById('modal-table-actions');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+};
+
+window.closeTableActionsModal = function() {
+  const modal = document.getElementById('modal-table-actions');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  window.currentModalTableNum = null;
+  window.currentModalTableOrder = null;
+};
+
+window.handleTableModalAction = function(actionType) {
+  AudioSynthesizer.playBeep();
+  const tableNum = window.currentModalTableNum;
+  const order = window.currentModalTableOrder;
   const hasOrder = !!order;
   
-  const promptMsg = AppState.selectedLang === 'ar'
-    ? `خيارات الطاولة رقم ${tableNum} ${hasOrder ? `(الطلب النشط حالياً ${order.id})` : '(شاغرة ومتاحة)'}:\n1. نقل الطلب لطاولة أخرى\n2. عرض رابط ورمز الـ QR\n3. تعديل مسمى/رقم الطاولة\n4. دمج هذه الطاولة مع طاولة أخرى\n5. حذف هذه الطاولة بالكامل من المطعم\n${hasOrder ? '6. تحصيل الحساب ودفع الفاتورة بالكاشير\n' : ''}أدخل الرقم (1-${hasOrder ? '6' : '5'}):`
-    : `Table ${tableNum} options ${hasOrder ? `(Active Order ${order.id})` : '(Vacant & Available)'}:\n1. Transfer order to another table\n2. View QR link\n3. Rename/Edit Table name\n4. Merge with another table\n5. Delete Table completely\n${hasOrder ? '6. Collect payment and checkout at Cashier\n' : ''}Enter option (1-${hasOrder ? '6' : '5'}):`;
-    
-  const choice = prompt(promptMsg);
-  
-  if (choice === '1') {
+  if (!tableNum) return;
+
+  if (actionType === 'transfer') {
     if (!hasOrder) {
-      alert(AppState.selectedLang === 'ar' ? 'لا يوجد طلب نشط على هذه الطاولة لنقله!' : 'No active order on this table to transfer!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'لا يوجد طلب نشط على هذه الطاولة لنقله!' : 'No active order on this table to transfer!',
+        'error'
+      );
       return;
     }
     const targetTableStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل رقم الطاولة المستهدفة لنقل الطلب إليها:' : 'Enter target table number:');
+    if (!targetTableStr) return;
     const targetTable = parseInt(targetTableStr);
     
     if (isNaN(targetTable) || targetTable < 1 || targetTable > AppState.totalTables) {
-      alert(AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح!' : 'Invalid table number!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح!' : 'Invalid table number!',
+        'error'
+      );
       return;
     }
     
@@ -5917,12 +5975,21 @@ window.triggerAdminTableAction = function(tableNum, order) {
       `Transferred order ${order.id} from Table ${originalTable} to Table ${targetTable}`
     );
     
+    showToastNotification(
+      AppState.selectedLang === 'ar' ? `تم نقل الطلب ${order.id} بنجاح إلى طاولة ${targetTable}!` : `Successfully transferred order ${order.id} to table ${targetTable}!`,
+      'success'
+    );
+    
+    window.closeTableActionsModal();
     renderAdminTablesGrid();
-  } else if (choice === '2') {
+  } else if (actionType === 'qr') {
     let href = window.location.href.split('?')[0].split('#')[0];
     const tableUrl = `${href}?table=${tableNum}`;
-    alert(`QR Code Link Table ${tableNum}: \n${tableUrl}`);
-  } else if (choice === '3') {
+    
+    // Create a sleek prompt-fallback using browser built-in, but since it's just displaying information we can also print to console or alert.
+    // Wait, let's make it alert only for the link as copying is easiest from prompt/alert, or show it. Let's keep a friendly message.
+    alert(`رابط قائمة العميل للطاولة رقم ${tableNum}:\n\n${tableUrl}`);
+  } else if (actionType === 'rename') {
     const newNumStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل الاسم أو المسمى الجديد لهذه الطاولة:' : 'Enter new name/number for this table:', tableNum);
     if (newNumStr) {
       logAuditTrail(
@@ -5930,14 +5997,22 @@ window.triggerAdminTableAction = function(tableNum, order) {
         `تعديل مسمى الطاولة رقم ${tableNum} إلى "${newNumStr}"`,
         `Renamed Table ${tableNum} to "${newNumStr}"`
       );
-      alert(AppState.selectedLang === 'ar' ? 'تم تعديل مسمى الطاولة بنجاح!' : 'Table renamed successfully!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم تعديل مسمى الطاولة بنجاح!' : 'Table renamed successfully!',
+        'success'
+      );
+      window.closeTableActionsModal();
       renderAdminTablesGrid();
     }
-  } else if (choice === '4') {
+  } else if (actionType === 'merge') {
     const mergeTableStr = prompt(AppState.selectedLang === 'ar' ? 'أدخل رقم الطاولة الأخرى التي ترغب بدمجها مع هذه الطاولة:' : 'Enter target table to merge with:');
+    if (!mergeTableStr) return;
     const mergeTable = parseInt(mergeTableStr);
     if (isNaN(mergeTable) || mergeTable < 1 || mergeTable > AppState.totalTables) {
-      alert(AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح للدمج!' : 'Invalid table number for merge!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'رقم طاولة غير صحيح للدمج!' : 'Invalid table number for merge!',
+        'error'
+      );
       return;
     }
     logAuditTrail(
@@ -5945,9 +6020,13 @@ window.triggerAdminTableAction = function(tableNum, order) {
       `تم دمج الطاولة رقم ${mergeTable} مع الطاولة رقم ${tableNum} بنجاح`,
       `Merged Table ${mergeTable} with Table ${tableNum} successfully`
     );
-    alert(AppState.selectedLang === 'ar' ? `تم دمج الطاولة ${mergeTable} مع الطاولة ${tableNum} بنجاح!` : `Successfully merged Table ${mergeTable} with Table ${tableNum}!`);
+    showToastNotification(
+      AppState.selectedLang === 'ar' ? `تم دمج الطاولة ${mergeTable} مع الطاولة ${tableNum} بنجاح!` : `Successfully merged Table ${mergeTable} with Table ${tableNum}!`,
+      'success'
+    );
+    window.closeTableActionsModal();
     renderAdminTablesGrid();
-  } else if (choice === '5') {
+  } else if (actionType === 'delete') {
     if (confirm(AppState.selectedLang === 'ar' ? `هل أنت متأكد من حذف الطاولة رقم ${tableNum} بالكامل؟` : `Are you sure you want to delete Table ${tableNum} completely?`)) {
       AppState.totalTables = Math.max(1, (AppState.totalTables || 12) - 1);
       localStorage.setItem('HIPROUST_TOTAL_TABLES', AppState.totalTables);
@@ -5958,13 +6037,22 @@ window.triggerAdminTableAction = function(tableNum, order) {
         `Deleted and removed Table ${tableNum} from active layout`
       );
       
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? `تم إزالة وحذف الطاولة رقم ${tableNum} بنجاح` : `Successfully deleted Table ${tableNum}`,
+        'success'
+      );
+      
+      window.closeTableActionsModal();
       renderAdminTablesGrid();
-      renderAdminQRCodes();
+      if (typeof renderAdminQRCodes === 'function') renderAdminQRCodes();
       renderAdminDashboard();
     }
-  } else if (choice === '6') {
+  } else if (actionType === 'checkout') {
     if (!hasOrder) {
-      alert(AppState.selectedLang === 'ar' ? 'لا يوجد طلب نشط على هذه الطاولة لمحاسبته!' : 'No active order on this table to checkout!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'لا يوجد طلب نشط على هذه الطاولة لمحاسبته!' : 'No active order on this table to checkout!',
+        'error'
+      );
       return;
     }
     
@@ -5974,11 +6062,19 @@ window.triggerAdminTableAction = function(tableNum, order) {
       
     if (payChoice === '1') {
       window.approveCashierPayment(order.id, 'cash');
-      alert(AppState.selectedLang === 'ar' ? 'تم الدفع نقداً بنجاح وتسوية الطاولة ماليّاً!' : 'Paid in cash successfully and table cleared!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم الدفع نقداً بنجاح وتسوية الطاولة ماليّاً!' : 'Paid in cash successfully and table cleared!',
+        'success'
+      );
+      window.closeTableActionsModal();
       renderAdminTablesGrid();
     } else if (payChoice === '2') {
       window.approveCashierPayment(order.id, 'mada');
-      alert(AppState.selectedLang === 'ar' ? 'تم الدفع بالشبكة مدى بنجاح وتسوية الطاولة ماليّاً!' : 'Paid via Mada successfully and table cleared!');
+      showToastNotification(
+        AppState.selectedLang === 'ar' ? 'تم الدفع بالشبكة مدى بنجاح وتسوية الطاولة ماليّاً!' : 'Paid via Mada successfully and table cleared!',
+        'success'
+      );
+      window.closeTableActionsModal();
       renderAdminTablesGrid();
     }
   }
@@ -6114,9 +6210,104 @@ window.toggleBanCustomer = function(phone, banState) {
 
 window.viewCustomerHistory = function(phone) {
   AudioSynthesizer.playBeep();
+  
+  const customer = AppState.customers.find(c => c.phone === phone);
+  const custName = customer ? customer.name : phone;
+  
+  const nameDisplay = document.getElementById('history-cust-name');
+  if (nameDisplay) {
+    nameDisplay.innerText = custName;
+  }
+  
+  const container = document.getElementById('history-orders-list');
+  if (!container) return;
+  container.innerHTML = '';
+  
   const history = AppState.orders.filter(o => o.phone === phone);
-  const historyStr = history.map(o => `${o.id} - ${o.timestamp} - المجموع: ${o.total.toFixed(1)} SAR (${o.items.map(i => i.qty + 'x ' + i.nameAr).join(', ')})`).join('\n\n');
-  alert(historyStr || 'لا توجد طلبيات سابقة لهذا العميل.');
+  
+  if (history.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px; color: var(--text-light-muted);">
+        <i class="fa-solid fa-folder-open" style="font-size: 3rem; color: var(--primary-yellow); opacity: 0.5; margin-bottom: 12px;"></i>
+        <div style="font-size: 0.95rem; font-weight: bold;">لا توجد طلبيات سابقة لهذا العميل</div>
+      </div>
+    `;
+  } else {
+    // Sort from newest to oldest
+    const sortedHistory = [...history].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    sortedHistory.forEach(order => {
+      const card = document.createElement('div');
+      card.style.background = 'rgba(255, 255, 255, 0.03)';
+      card.style.border = '1px solid var(--dark-border)';
+      card.style.borderRadius = '16px';
+      card.style.padding = '14px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '10px';
+      
+      const itemsHtml = order.items.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.02); padding: 6px 10px; border-radius: 8px; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.02);">
+          <span style="color: var(--text-light); font-weight: bold;">${item.nameAr}</span>
+          <span style="color: var(--primary-yellow); font-weight: 800;">x${item.qty}</span>
+        </div>
+      `).join('');
+      
+      let statusColor = '#9CA3AF'; // Gray for general/completed
+      let statusTextAr = order.status;
+      
+      if (order.status === 'pending_payment') {
+        statusColor = '#EF4444';
+        statusTextAr = 'بانتظار الدفع';
+      } else if (order.status === 'preparing') {
+        statusColor = '#F59E0B';
+        statusTextAr = 'قيد التحضير';
+      } else if (order.status === 'ready') {
+        statusColor = '#10B981';
+        statusTextAr = 'جاهز للتسليم';
+      } else if (order.status === 'completed' || order.status === 'delivered') {
+        statusColor = '#3B82F6';
+        statusTextAr = 'مكتمل ومسلم';
+      } else if (order.status === 'cancelled') {
+        statusColor = '#9CA3AF';
+        statusTextAr = 'ملغي';
+      }
+      
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 8px;">
+          <div>
+            <span style="font-weight: 800; color: var(--primary-yellow); font-size: 0.95rem;">${order.id}</span>
+            <span style="font-size: 0.75rem; color: var(--text-light-muted); margin-right: 8px;">${order.timestamp || ''}</span>
+          </div>
+          <span style="background-color: ${statusColor}1A; color: ${statusColor}; border: 1px solid ${statusColor}40; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold;">
+            ${statusTextAr}
+          </span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${itemsHtml}
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 8px; margin-top: 4px;">
+          <span style="font-size: 0.75rem; color: var(--text-light-muted);">إجمالي قيمة الطلب:</span>
+          <span style="font-weight: 800; color: #10B981; font-size: 0.95rem;">${order.total.toFixed(2)} SAR</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+  
+  const modal = document.getElementById('modal-customer-history');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+};
+
+window.closeCustomerHistoryModal = function() {
+  const modal = document.getElementById('modal-customer-history');
+  if (modal) {
+    modal.style.display = 'none';
+  }
 };
 
 // --------------------------------------------------------------------------
